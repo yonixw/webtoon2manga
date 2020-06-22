@@ -34,12 +34,12 @@ namespace webtoon2manga_console.Graphics
 
     class RemoveBlack
     {
-        public static MagickImage FromFile(FileInfo file)
+        public static MagickImage FromFile(FileInfo file, bool usePencil = false)
         {
-            return FromFile(file.FullName);
+            return FromFile(file.FullName, usePencil);
         }
 
-        public static MagickImage FromFile(string file)
+        public static MagickImage FromFile(string file, bool usePencil = false)
         {
             MagickImage source = new MagickImage(file);
             MagickImage black_zones = extarctZones1(source);
@@ -50,17 +50,15 @@ namespace webtoon2manga_console.Graphics
             //
             using (MagickImage contentGrayscale = getContentLightnessMasked4(source, finer_black_zones_not_AsMask))
             {
-                //finer_black_zones_not_AsMask.Dispose();
-                //source.Dispose();
-                //using (MagickImage blackAsPattern = getPatternFillMasked5(finer_black_zones))
-                //{
-                //    finer_black_zones.Dispose();
-                //    MagickImage result = getResult6(blackAsPattern, contentGrayscale);
+                finer_black_zones_not_AsMask.Dispose();
+                source.Dispose();
+                using (MagickImage blackAsPattern = getPatternFillMasked5(finer_black_zones, usePencil: usePencil))
+                {
+                    finer_black_zones.Dispose();
+                    MagickImage result = getResult6(blackAsPattern, contentGrayscale);
 
-                //    return result;
-                //}
-
-                return (MagickImage)contentGrayscale.Clone();
+                    return result;
+                }
             }
         }
 
@@ -105,8 +103,22 @@ namespace webtoon2manga_console.Graphics
             return lightness;
         }
 
+        static MagickImage pencilImage(int width=256, int height=256)
+        {
+            //convert -size 256x256 xc:  +noise Random  -virtual-pixel tile -motion-blur 0x20+135 -charcoal 1   pencil_tile.gif
+            MagickImage result = new MagickImage(new MagickColor("white"), width, height);
+            result.AddNoise(NoiseType.Random);
+            result.MotionBlur(0, 20, 135);
+            result.Charcoal(1, 1);
+            result.ColorSpace = ColorSpace.Gray;
+            result.Threshold(new Percentage(50));
+            return result;
+        }
+
+        public static MagickImage PencilTile = pencilImage();
+
         static MagickImage getPatternFillMasked5(MagickImage origin,
-            string color = "white", float tileFactor = 1.25f)
+            string color = "white", float tileFactor = 1.25f, bool usePencil =false)
         {
             /*
              * convert 
@@ -124,15 +136,23 @@ namespace webtoon2manga_console.Graphics
             clone.Alpha(AlphaOption.Extract);
             clone.Negate();
 
-            var tile = new MagickImage("PATTERN:GRAY95", // https://imagemagick.org/script/formats.php#builtin-patterns
-                (int)(clone.Width / tileFactor), (int)(clone.Height/ tileFactor));
-            tile.Resize(new Percentage(tileFactor*100));
+            MagickImage tile = null;
+            if (!usePencil)
+            {
+                tile = new MagickImage("PATTERN:GRAY95", // https://imagemagick.org/script/formats.php#builtin-patterns
+                    (int)(clone.Width / tileFactor), (int)(clone.Height / tileFactor));
+                tile.Resize(new Percentage(tileFactor * 100));
+            }
+            else
+            {
+                tile = pencilImage((int)(clone.Width / tileFactor), (int)(clone.Height / tileFactor));
+                tile.Resize(new Percentage(tileFactor * 100));
+            }
 
             var tiled_clone = (MagickImage)clone.Clone();
-            //new Drawables()
-            //    .Color(0, 0, PaintMethod.Reset) // Reset to color of pixel 0,0
-            //    .Draw(tiled_clone);
             tiled_clone.Composite(tile, CompositeOperator.ColorDodge); // add in away that interacts with all black
+
+            tile.Dispose();
 
             return tiled_clone;
         }
@@ -143,7 +163,7 @@ namespace webtoon2manga_console.Graphics
              * convert -composite bg_mask_pattern-1.png content.png final.png
             */
             var clone = content.Clone();
-            clone.Composite(patternedBackground, CompositeOperator.Overlay);
+            clone.Composite(patternedBackground, CompositeOperator.Darken);
             return (MagickImage)clone;
         }
     }

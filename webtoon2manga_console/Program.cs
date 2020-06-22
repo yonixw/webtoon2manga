@@ -29,34 +29,19 @@ namespace webtoon2manga_console
             if (args.Length > 0)
                 sourceFolder = args[0];
 
-            string f1 = @"C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\Chapter 3\004.webp.png";
-            string f2 = @"C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\Chapter 3\002.webp.png";
-
-            Stopwatch sw = new Stopwatch();
-            sw.Start();
+            string f1 = @"C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\tryouts\005.webp.png";
 
             log.i("Started " + f1);
-            var result = RemoveBlack.FromFile(f1);
+            var result = RemoveBlack.FromFile(f1, true);
             result.Write(f1 + "_result.png");
             result.Dispose();
 
-            sw.Stop();
-            log.i("Took: " + sw.Elapsed.ToString());
-            sw.Start();
-
-            log.i("Started 2" + f2);
-            var result2 = RemoveBlack.FromFile(f2);
-            result2.Write(f2 + "_result.png");
-            result2.Dispose();
-            log.i("Took: " + sw.Elapsed.ToString());
-            sw.Stop();
-            log.i("Took: " + sw.Elapsed.ToString());
 
 
 
             // ====================== EXIT =======================
             Console.WriteLine("Enter to exit...");
-            Console.ReadLine();
+            //Console.ReadLine();
         }
     }
 }
