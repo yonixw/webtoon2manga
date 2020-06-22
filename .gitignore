@@ -1,0 +1,5 @@
+/packages/
+/Samples/
+bin/
+obj/
+.vs/
