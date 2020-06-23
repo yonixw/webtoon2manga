@@ -1,4 +1,5 @@
-﻿using ImageMagick;
+﻿using CommandLine;
+using ImageMagick;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -12,36 +13,156 @@ using webtoon2manga_console.Tools;
 
 namespace webtoon2manga_console
 {
+
+    class SharedOptions
+    {
+        [Option('f', "file", HelpText = "Input files")]
+        public IEnumerable<string> Files { get; set; }
+
+        [Option('d', "dir", HelpText = "Input Folders")]
+        public IEnumerable<string> Folders { get; set; }
+
+        [Option('o', "out", HelpText = "Output folder")]
+        public string OutputFolder { get; set; }
+
+        // Default true is issue: https://github.com/commandlineparser/commandline/issues/290
+        //      Fix: Use bool?
+        [Option('p', "pause", Default = false, HelpText = "Pause before exit? ")]
+        public bool Pause { get; set; }
+
+        [Option('m', "memory", Default = 1024, HelpText = "Limit Memory (MB)")]
+        public int LimitMB { get; set; }
+    }
+
+    [Verb("color",HelpText ="Convert page to grayscale and remove black backfround")]
+    class ColorOptions : SharedOptions
+    {
+        [Option("pencil",Default = false, HelpText ="Use pencil tile as background? ")]
+        public bool UsePencilTile { get; set; }
+
+    }
+
+    [Verb("duplex", HelpText = "Convert long webtoon strip to A4 double side")]
+    class DuplexOptions : SharedOptions
+    {
+        [Option('l',"landscape", Default = true, HelpText = "Landscape? ")]
+        public bool? Landscape { get; set; }
+
+        [Option('c',"col",Required =true, HelpText = "How much columns to put in a page")]
+        public int Columns { get; set; }
+    }
+
     class Program
     {
         static LoggerHelper log = new LoggerHelper("MAIN");
 
-       // TODO: GrayScale + Lightness (blue)
-
         static void Main(string[] args)
         {
-            // Less memory=>Slow
-            ImageMagick.ResourceLimits.Memory = 750 * (ulong)Math.Pow(1024,2); // 2=MB, 3=GB ...
+            var args_parsed = Parser.Default.ParseArguments<ColorOptions, DuplexOptions>(args)
+                .WithParsed<ColorOptions>((options) =>
+                {
+                    ImageMagick.ResourceLimits.Memory = (ulong)options.LimitMB * (ulong)Math.Pow(1024, 2); // 2=MB, 3=GB ...
 
-            log.i(LoggerHelper.Stringify("Args", args));
+                    Color((ColorOptions)options);
 
-            string sourceFolder = @"C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples";
-            if (args.Length > 0)
-                sourceFolder = args[0];
+                    if (options.Pause)
+                        Pause();
+                })
+                .WithParsed<DuplexOptions>((options) =>
+                {
+                    ImageMagick.ResourceLimits.Memory = (ulong)options.LimitMB * (ulong)Math.Pow(1024, 2); // 2=MB, 3=GB ...
 
-            string f1 = @"C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\tryouts\005.webp.png";
+                    log.i("Landscape=" + options.Landscape);
 
-            log.i("Started " + f1);
-            var result = RemoveBlack.FromFile(f1, true);
-            result.Write(f1 + "_result.png");
-            result.Dispose();
+                    if (options.Pause)
+                        Pause();
+                })
+                .WithNotParsed(errors =>
+                {
+                    log.e("Error parsing inputs");
+                    foreach(var e in errors)
+                    {
+                        log.e(e);
+                    }
+                });
+        }
 
-
-
-
-            // ====================== EXIT =======================
+        static void Pause()
+        {
             Console.WriteLine("Enter to exit...");
-            //Console.ReadLine();
+            Console.ReadLine();
+        }
+
+        static void Color(ColorOptions opt)
+        {
+            var files = opt.Files.ToArray();
+            log.i(LoggerHelper.Stringify("Files", files));
+            foreach (string f in files)
+            {
+                ProcessFile("color-convert", f, opt.OutputFolder, (file, outfile) => {
+                    using (var fileResult = RemoveBlack.FromFile(file, opt.UsePencilTile))
+                    {
+                        fileResult.Write(outfile);
+                    }
+                });
+            }
+
+            var dirs = opt.Folders.ToArray();
+            log.i(LoggerHelper.Stringify("Folders", dirs));
+            foreach (string d in dirs)
+            {
+                DirectoryInfo _di = new DirectoryInfo(d);
+                if (_di.Exists)
+                {
+                    foreach(FileInfo fi in _di.GetFiles("*.*", SearchOption.AllDirectories))
+                    {
+                        ProcessFile("color-convert", fi.FullName, opt.OutputFolder, (file, outfile) => {
+                            using (var fileResult = RemoveBlack.FromFile(file, opt.UsePencilTile))
+                            {
+                                fileResult.Write(outfile);
+                            }
+                        });
+                    }
+                }
+                else
+                {
+                    log.e("Can't find dir '" + d + "', skipping");
+                }
+            }
+        }
+
+
+        delegate void fileProcess(string file, string output_file);
+        static void ProcessFile(string tag, string file, string outputFolder, fileProcess callback)
+        {
+            LoggerHelper log = new LoggerHelper(tag);
+            try
+            {
+                FileInfo _fi = new FileInfo(file);
+                if (_fi.Exists)
+                {
+                    string outputFile = file;
+                    if (!string.IsNullOrEmpty(outputFolder))
+                        outputFile = _fi.FullName.Replace(_fi.DirectoryName, outputFolder);
+                    var _fi_out = new FileInfo(outputFile);
+                    if (!_fi_out.Directory.Exists)
+                    {
+                        log.i("Creating: " + _fi_out.Directory.FullName);
+                        _fi_out.Directory.Create();
+                    }
+                    log.i("Start processing '" + _fi.FullName + "'");
+                    callback(file, outputFile);
+                    log.i("Done '" + _fi.Name + "'");
+                }
+                else
+                {
+                    log.e("Can't find file '" + file + "', skipping");
+                }
+            }
+            catch (Exception ex)
+            {
+                log.e("Fail processing file '" + file + "'", ex);
+            }
         }
     }
 }
