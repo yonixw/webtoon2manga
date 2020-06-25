@@ -5,12 +5,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace webtoon2manga_console
+namespace webtoon2manga_console.Bindings
 {
     class TemplatesTools
     {
         static Size A4_300PPI = new Size(2480, 3508);
-        static public Size getA4(int PPI, bool Portratit)
+        public static Size getA4(int PPI, bool Portratit)
         {
             //https://www.papersizes.org/a-sizes-in-pixels.htm
             // A3 is bigger x2, A5 is smaller x2

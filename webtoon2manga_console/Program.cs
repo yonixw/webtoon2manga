@@ -63,7 +63,7 @@ namespace webtoon2manga_console
                 {
                     ImageMagick.ResourceLimits.Memory = (ulong)options.LimitMB * (ulong)Math.Pow(1024, 2); // 2=MB, 3=GB ...
 
-                    Color((ColorOptions)options);
+                    Color(options);
 
                     if (options.Pause)
                         Pause();
@@ -72,7 +72,7 @@ namespace webtoon2manga_console
                 {
                     ImageMagick.ResourceLimits.Memory = (ulong)options.LimitMB * (ulong)Math.Pow(1024, 2); // 2=MB, 3=GB ...
 
-                    log.i("Landscape=" + options.Landscape);
+                    Duplex(options);
 
                     if (options.Pause)
                         Pause();
@@ -93,46 +93,7 @@ namespace webtoon2manga_console
             Console.ReadLine();
         }
 
-        static void Color(ColorOptions opt)
-        {
-            var files = opt.Files.ToArray();
-            log.i(LoggerHelper.Stringify("Files", files));
-            foreach (string f in files)
-            {
-                ProcessFile("color-convert", f, opt.OutputFolder, (file, outfile) => {
-                    using (var fileResult = RemoveBlack.FromFile(file, opt.UsePencilTile))
-                    {
-                        fileResult.Write(outfile);
-                    }
-                });
-            }
-
-            var dirs = opt.Folders.ToArray();
-            log.i(LoggerHelper.Stringify("Folders", dirs));
-            foreach (string d in dirs)
-            {
-                DirectoryInfo _di = new DirectoryInfo(d);
-                if (_di.Exists)
-                {
-                    foreach(FileInfo fi in _di.GetFiles("*.*", SearchOption.AllDirectories))
-                    {
-                        ProcessFile("color-convert", fi.FullName, opt.OutputFolder, (file, outfile) => {
-                            using (var fileResult = RemoveBlack.FromFile(file, opt.UsePencilTile))
-                            {
-                                fileResult.Write(outfile);
-                            }
-                        });
-                    }
-                }
-                else
-                {
-                    log.e("Can't find dir '" + d + "', skipping");
-                }
-            }
-        }
-
-
-        delegate void fileProcess(string file, string output_file);
+        delegate void fileProcess(string file, string output_file, LoggerHelper log);
         static void ProcessFile(string tag, string file, string outputFolder, fileProcess callback)
         {
             LoggerHelper log = new LoggerHelper(tag);
@@ -151,7 +112,7 @@ namespace webtoon2manga_console
                         _fi_out.Directory.Create();
                     }
                     log.i("Start processing '" + _fi.FullName + "'");
-                    callback(file, outputFile);
+                    callback(file, outputFile,log);
                     log.i("Done '" + _fi.Name + "'");
                 }
                 else
@@ -163,6 +124,65 @@ namespace webtoon2manga_console
             {
                 log.e("Fail processing file '" + file + "'", ex);
             }
+        }
+
+        private static void ProcessAllFiles(SharedOptions opt, Action<string> _file_job)
+        {
+            var files = opt.Files.ToArray();
+            log.i(LoggerHelper.Stringify("Files", files));
+            foreach (string f in files)
+            {
+                _file_job(f);
+            }
+
+            var dirs = opt.Folders.ToArray();
+            log.i(LoggerHelper.Stringify("Folders", dirs));
+            foreach (string d in dirs)
+            {
+                DirectoryInfo _di = new DirectoryInfo(d);
+                if (_di.Exists)
+                {
+                    foreach (FileInfo fi in _di.GetFiles("*.*", SearchOption.AllDirectories))
+                    {
+                        _file_job(fi.FullName);
+                    }
+                }
+                else
+                {
+                    log.e("Can't find dir '" + d + "', skipping");
+                }
+            }
+        }
+
+        static void Color(ColorOptions opt)
+        {
+            Action<string> _file_job = new Action<string>((string input_file) =>
+            {
+                ProcessFile("color-convert", input_file, opt.OutputFolder, (file, outfile, log) =>
+                {
+                    using (var fileResult = RemoveBlack.FromFile(file, opt.UsePencilTile))
+                    {
+                        fileResult.Write(outfile);
+                    }
+                });
+            });
+
+            ProcessAllFiles(opt, _file_job);
+        }
+
+       
+
+        static void Duplex(DuplexOptions opt)
+        {
+            Action<string> _file_job = new Action<string>((string input_file) =>
+            {
+                 ProcessFile("duplex-job", input_file, opt.OutputFolder, (file, output_file,log) =>
+                 {
+                     log.i(string.Format("Source: {0}\nTarget: {1}", file, output_file));
+                 });
+            });
+
+            ProcessAllFiles(opt, _file_job);
         }
     }
 }
