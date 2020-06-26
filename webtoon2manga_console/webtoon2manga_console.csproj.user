@@ -3,4 +3,7 @@
   <PropertyGroup>
     <ProjectView>ProjectFiles</ProjectView>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
+    <StartArguments>duplex -m 750 -c 3 -l true -f "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\Chapter 3\004.webp.png_result.png" "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\tryouts\005.webp.png_result.png" "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\Chapter 6\004.webp.png" -o "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\tryouts\binding" -p</StartArguments>
+  </PropertyGroup>
 </Project>

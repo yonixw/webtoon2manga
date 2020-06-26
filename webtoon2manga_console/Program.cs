@@ -8,6 +8,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using webtoon2manga_console.Bindings;
 using webtoon2manga_console.Graphics;
 using webtoon2manga_console.Tools;
 
@@ -174,15 +175,31 @@ namespace webtoon2manga_console
 
         static void Duplex(DuplexOptions opt)
         {
+            Duplex d = new Duplex(TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
+            List<PageFragmnet> fragments = new List<PageFragmnet>();
+
             Action<string> _file_job = new Action<string>((string input_file) =>
             {
                  ProcessFile("duplex-job", input_file, opt.OutputFolder, (file, output_file,log) =>
                  {
                      log.i(string.Format("Source: {0}\nTarget: {1}", file, output_file));
+                     var toon = new WebtoonPage()
+                     {
+                         filpath = input_file
+                     };
+                     using (MagickImage img = new MagickImage(file))
+                     {
+                         toon.height = img.Height;
+                         toon.width = img.Width;
+                     }
+
+                     fragments.AddRange(d.splitPageLandscape(toon));
                  });
             });
 
             ProcessAllFiles(opt, _file_job);
+
+            d.saveCahpterFragmentsIntoPNG_LTR(fragments, "", opt.OutputFolder);
         }
     }
 }

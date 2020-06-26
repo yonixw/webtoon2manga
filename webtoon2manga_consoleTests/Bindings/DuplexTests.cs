@@ -57,11 +57,11 @@ namespace webtoon2manga_console.Bindings.Tests
                 width = 800,
                 height = 12480,
             };
-            List<PageFragmnet> listToPrint = Duplex.splitPageLandscape(
-                    page,
-                    Bindings.TemplatesTools.getA4(96, false),
+            List<PageFragmnet> listToPrint = new Duplex(Bindings.TemplatesTools.getA4(96, false),
                     3,
                     padPercent: 2.3f
+            ).splitPageLandscape(
+                    page
             );
 
             Assert.AreEqual(8, listToPrint.Count);
@@ -79,12 +79,13 @@ namespace webtoon2manga_console.Bindings.Tests
             int[] dpps = new int[] {96,150,300,600 };
             foreach (int dpp in dpps)
             {
-                List<PageFragmnet> listToPrint = Duplex.splitPageLandscape(
-                       page,
-                       Bindings.TemplatesTools.getA4(dpp, false),
-                       3,
-                       padPercent: 2.3f
-               );
+              List<PageFragmnet> listToPrint = new Duplex(
+                        Bindings.TemplatesTools.getA4(dpp, false),
+                        3,
+                        padPercent: 2.3f
+                ).splitPageLandscape(
+                        page
+                );
 
                 Assert.AreEqual(8, listToPrint.Count);
             }
@@ -104,12 +105,11 @@ namespace webtoon2manga_console.Bindings.Tests
             float padds = 0.023f;
             var PageA4 = Bindings.TemplatesTools.getA4(96, false);
 
-            List<PageFragmnet> listToPrint = Duplex.splitPageLandscape(
-                    page,
-                    PageA4,
+            List<PageFragmnet> listToPrint = new Duplex(Bindings.TemplatesTools.getA4(96, false),
                     3,
-                    padPercent: padds * 100,
-                    repeatColPercent: padds * 100
+                    padPercent: 2.3f
+            ).splitPageLandscape(
+                    page
             );
 
             if (listToPrint.Count > 1)
