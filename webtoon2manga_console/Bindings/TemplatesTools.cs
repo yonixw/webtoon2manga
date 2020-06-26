@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace webtoon2manga_console.Bindings
 {
-    class TemplatesTools
+    public class TemplatesTools
     {
         static Size A4_300PPI = new Size(2480, 3508);
         public static Size getA4(int PPI, bool Portratit)
