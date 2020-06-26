@@ -102,10 +102,11 @@ namespace webtoon2manga_console.Bindings.Tests
             };
 
             float padds = 0.023f;
+            var PageA4 = Bindings.TemplatesTools.getA4(96, false);
 
             List<PageFragmnet> listToPrint = Duplex.splitPageLandscape(
                     page,
-                    Bindings.TemplatesTools.getA4(96, false),
+                    PageA4,
                     3,
                     padPercent: padds * 100,
                     repeatColPercent: padds * 100
@@ -123,7 +124,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 }
                 TotalHeight += listToPrint[listToPrint.Count - 1].Transform.Height;
 
-                float expected_new_height = page.height + page.height * padds * (listToPrint.Count - 1);
+                float expected_new_height = page.height * (1 + padds);
                 Console.WriteLine(string.Format("TotalH: {0}, OriginalH: {1}, Estimated: {2}",
                         TotalHeight, page.height, expected_new_height
                     ));

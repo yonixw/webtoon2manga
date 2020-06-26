@@ -53,11 +53,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Bindings\Duplex.cs" />
+    <Compile Include="Bindings\TemplatesTools.cs" />
     <Compile Include="Graphics\RemoveBlack.cs" />
-    <Compile Include="ImageObjects.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TemplatesTools.cs" />
     <Compile Include="Tools\LoggerHelper.cs" />
   </ItemGroup>
   <ItemGroup>
