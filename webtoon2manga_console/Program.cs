@@ -23,7 +23,7 @@ namespace webtoon2manga_console
         [Option('d', "dir", HelpText = "Input Folders")]
         public IEnumerable<string> Folders { get; set; }
 
-        [Option('o', "out", HelpText = "Output folder")]
+        [Option('o', "out", Required = true, HelpText = "Output folder")]
         public string OutputFolder { get; set; }
 
         // Default true is issue: https://github.com/commandlineparser/commandline/issues/290
