@@ -1,7 +1,8 @@
 REM TO C#
 REM https://www.imagemagick.org/discourse-server/viewtopic.php?t=33531
 
-SET f=1.png
+CD C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\tryouts\
+SET f="17.png"
 
 REM Pencil:
 REM convert -size 256x256 xc:  +noise Random  -virtual-pixel tile -motion-blur 0x20+135 -charcoal 1   pencil_tile.gif

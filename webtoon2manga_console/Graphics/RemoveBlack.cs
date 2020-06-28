@@ -1,11 +1,8 @@
 ﻿using ImageMagick;
 using System;
-using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Linq;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace webtoon2manga_console.Graphics
 {
@@ -42,9 +39,25 @@ namespace webtoon2manga_console.Graphics
         public static MagickImage FromFile(string file, int fuzz, bool usePencil = false)
         {
             MagickImage source = new MagickImage(file);
+            //source.Trim(); // Can't "copy" trim since we dont know new origin\offsets...
+
             MagickImage black_zones = extarctZones1(source, fuzz: fuzz);
-            MagickImage finer_black_zones = removeSmallAreas2(black_zones);
+            MagickImage finer_black_zones = removeSmallAreas2(black_zones, useThershold: true);
+
+            Size LiquidResizeTarget = removeDoubleLines(finer_black_zones);
+            Console.WriteLine("{0}x{1}->Liq->{2}x{3}", source.Width, source.Height, LiquidResizeTarget.Width, LiquidResizeTarget.Height);
+
+            MagickGeometry geom = new MagickGeometry(LiquidResizeTarget.Width, LiquidResizeTarget.Height);
+            geom.IgnoreAspectRatio = true;
+            source.LiquidRescale(geom);
+
             black_zones.Dispose();
+            finer_black_zones.Dispose();
+            // Recalculate blackZones
+            black_zones = extarctZones1(source, fuzz: fuzz);
+            finer_black_zones = removeSmallAreas2(black_zones);
+            black_zones.Dispose();
+
 
             MagickImage finer_black_zones_not_AsMask = getAlphaMask3(finer_black_zones, "white");
             //
@@ -58,6 +71,8 @@ namespace webtoon2manga_console.Graphics
                     MagickImage result = getResult6(blackAsPattern, contentGrayscale);
 
                     return result;
+
+                    //return finer_black_zones;
                 }
             }
         }
@@ -72,12 +87,14 @@ namespace webtoon2manga_console.Graphics
             return clone;
         }
 
-        static MagickImage removeSmallAreas2(MagickImage origin)
+        static MagickImage removeSmallAreas2(MagickImage origin, bool useThershold =false)
         {
             //convert bg_mask.png - morphology Erode Disk  -morphology Dilate Disk   bg_finer.png
             var clone = (MagickImage)origin.Clone();
             clone.Morphology(MorphologyMethod.Erode, Kernel.Disk);
             clone.Morphology(MorphologyMethod.Dilate, Kernel.Disk);
+            if (useThershold)
+                clone.Threshold(new Percentage(50));
             return clone;
         }
 
@@ -165,6 +182,73 @@ namespace webtoon2manga_console.Graphics
             var clone = content.Clone();
             clone.Composite(patternedBackground, CompositeOperator.Darken);
             return (MagickImage)clone;
+        }
+
+
+        static MagickColor GetColorBytes(byte[] pixel, int offset)
+        {
+            return new MagickColor(pixel[offset + 0], pixel[offset + 1], pixel[offset + 2], pixel[offset + 3]);
+        }
+
+        static bool isPixelSame(MagickColor startColor,byte[] pixel,int offset=0)
+        {
+            var color = GetColorBytes(pixel, offset);
+            return color.Equals(startColor);
+        }
+
+        static Size removeDoubleLines(MagickImage mask)
+        {
+            //http://www.imagemagick.org/Usage/resize/#sample
+            using (MagickImage clone = (MagickImage)mask.Clone())
+            {
+
+                // clone.ColorSpace = ColorSpace.RGB;
+                // clone.Alpha(AlphaOption.Set);
+                //return new Size(clone.Width, clone.Height);
+
+                using (var pixels = clone.GetPixelsUnsafe())
+                {
+                    int W = clone.Width;
+                    int DupLinesCount = 0;
+
+                    var colNumber = Math.Min(10, W);
+                    if (colNumber == 0)
+                        return new Size(clone.Width,clone.Height);
+
+                    for (int y = 0; y < clone.Height; y++)
+                    {
+                        MagickColor startColor = GetColorBytes(pixels.GetPixel(0, y).ToArray(),0);
+                        bool fastConstentDetect = true;
+                        for (int c = 0; c < colNumber; c++)
+                        {
+                            int cFinal = (c * W / colNumber);
+                            if (!isPixelSame(startColor, pixels.GetPixel(cFinal, y).ToArray()))
+                            {
+                                fastConstentDetect = false;
+                                break;
+                            }
+                        }
+
+                        if (fastConstentDetect) // By tring 10 pixel we guessed, now to really check:
+                        {
+                            bool constantLine = true;
+                            byte[] rowPixels = pixels.GetArea(0, y, W, 1);
+                            for (int rowI = 0; rowI < rowPixels.Length / 4; rowI++)
+                            {
+                                if (!isPixelSame(startColor, rowPixels, 4 * rowI))
+                                {
+                                    constantLine = false;
+                                    break;
+                                }
+                            }
+                            if (constantLine) DupLinesCount++;
+                        }
+                    }
+                    return new Size(clone.Width, clone.Height-DupLinesCount);
+                    //clone.LiquidRescale(W, clone.Height - DupLinesCount);
+                }
+                
+            }
         }
     }
 }
