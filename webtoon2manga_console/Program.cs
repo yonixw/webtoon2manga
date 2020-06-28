@@ -41,6 +41,9 @@ namespace webtoon2manga_console
         [Option("pencil",Default = false, HelpText ="Use pencil tile as background? ")]
         public bool UsePencilTile { get; set; }
 
+        [Option('z', "fuzz", Default = 1, HelpText = "Fuzz (in %) for finding black color")]
+        public int fuzz { get; set; }
+
     }
 
     [Verb("duplex", HelpText = "Convert long webtoon strip to A4 double side")]
@@ -161,7 +164,7 @@ namespace webtoon2manga_console
             {
                 ProcessFile("color-convert", input_file, opt.OutputFolder, (file, outfile, log) =>
                 {
-                    using (var fileResult = RemoveBlack.FromFile(file, opt.UsePencilTile))
+                    using (var fileResult = RemoveBlack.FromFile(file,opt.fuzz, opt.UsePencilTile))
                     {
                         fileResult.Write(outfile);
                     }

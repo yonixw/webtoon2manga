@@ -34,15 +34,15 @@ namespace webtoon2manga_console.Graphics
 
     class RemoveBlack
     {
-        public static MagickImage FromFile(FileInfo file, bool usePencil = false)
+        public static MagickImage FromFile(FileInfo file, int fuzz, bool usePencil = false)
         {
-            return FromFile(file.FullName, usePencil);
+            return FromFile(file.FullName,fuzz, usePencil);
         }
 
-        public static MagickImage FromFile(string file, bool usePencil = false)
+        public static MagickImage FromFile(string file, int fuzz, bool usePencil = false)
         {
             MagickImage source = new MagickImage(file);
-            MagickImage black_zones = extarctZones1(source);
+            MagickImage black_zones = extarctZones1(source, fuzz: fuzz);
             MagickImage finer_black_zones = removeSmallAreas2(black_zones);
             black_zones.Dispose();
 
