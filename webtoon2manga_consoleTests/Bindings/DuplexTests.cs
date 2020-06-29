@@ -57,7 +57,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 width = 800,
                 height = 12480,
             };
-            List<PageFragmnet> listToPrint = new Duplex(Bindings.TemplatesTools.getA4(96, false),
+            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), Bindings.TemplatesTools.getA4(96, false),
                     3,
                     padPercent: 2.3f
             ).splitPageLandscape(
@@ -79,7 +79,7 @@ namespace webtoon2manga_console.Bindings.Tests
             int[] dpps = new int[] {96,150,300,600 };
             foreach (int dpp in dpps)
             {
-              List<PageFragmnet> listToPrint = new Duplex(
+              List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"),
                         Bindings.TemplatesTools.getA4(dpp, false),
                         3,
                         padPercent: 2.3f
@@ -105,7 +105,7 @@ namespace webtoon2manga_console.Bindings.Tests
             float padds = 0.023f;
             var PageA4 = Bindings.TemplatesTools.getA4(96, false);
 
-            List<PageFragmnet> listToPrint = new Duplex(Bindings.TemplatesTools.getA4(96, false),
+            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), Bindings.TemplatesTools.getA4(96, false),
                     3,
                     padPercent: 2.3f
             ).splitPageLandscape(
