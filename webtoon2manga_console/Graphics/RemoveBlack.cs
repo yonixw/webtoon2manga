@@ -3,6 +3,7 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using webtoon2manga_console.Tools;
 
 namespace webtoon2manga_console.Graphics
 {
@@ -31,48 +32,54 @@ namespace webtoon2manga_console.Graphics
 
     class RemoveBlack
     {
-        public static MagickImage FromFile(FileInfo file, int fuzz, bool usePencil = false)
+        public static MagickImage FromFile(FileInfo file, int fuzz, LoggerHelper log, bool usePencil = false)
         {
-            return FromFile(file.FullName,fuzz, usePencil);
+            return FromFile(file.FullName,fuzz,log, usePencil);
         }
 
-        public static MagickImage FromFile(string file, int fuzz, bool usePencil = false)
+        public static MagickImage FromFile(string file, int fuzz,LoggerHelper log, bool usePencil = false)
         {
+
             MagickImage source = new MagickImage(file);
             //source.Trim(); // Can't "copy" trim since we dont know new origin\offsets...
 
+            log.i("(1/9) Detecting black background");
             MagickImage black_zones = extarctZones1(source, fuzz: fuzz);
-            MagickImage finer_black_zones = removeSmallAreas2(black_zones, useThershold: true);
 
-            Size LiquidResizeTarget = removeDoubleLines(finer_black_zones);
+            log.i("(2/9) Detecting empty vertical spaces");
+            Size LiquidResizeTarget = removeDoubleLines(black_zones);
             Console.WriteLine("{0}x{1}->Liq->{2}x{3}", source.Width, source.Height, LiquidResizeTarget.Width, LiquidResizeTarget.Height);
 
             MagickGeometry geom = new MagickGeometry(LiquidResizeTarget.Width, LiquidResizeTarget.Height);
             geom.IgnoreAspectRatio = true;
+            log.i("(3/9) Remove vertical spaces");
             source.LiquidRescale(geom);
 
             black_zones.Dispose();
-            finer_black_zones.Dispose();
             // Recalculate blackZones
+            log.i("(4/9) Detecting black background (again)");
             black_zones = extarctZones1(source, fuzz: fuzz);
-            finer_black_zones = removeSmallAreas2(black_zones);
+            log.i("(5/9) Remove black background small areas");
+            MagickImage finer_black_zones = removeSmallAreas2(black_zones);
             black_zones.Dispose();
 
-
+            log.i("(6/9) Black background as mask");
             MagickImage finer_black_zones_not_AsMask = getAlphaMask3(finer_black_zones, "white");
-            //
+
+            log.i("(7/9) Get grasyscale (but with HSL)");
             using (MagickImage contentGrayscale = getContentLightnessMasked4(source, finer_black_zones_not_AsMask))
             {
                 finer_black_zones_not_AsMask.Dispose();
                 source.Dispose();
+
+                log.i("(8/9) Replace background with Pattern");
                 using (MagickImage blackAsPattern = getPatternFillMasked5(finer_black_zones, usePencil: usePencil))
                 {
                     finer_black_zones.Dispose();
+                    log.i("(9/9) Combine All");
                     MagickImage result = getResult6(blackAsPattern, contentGrayscale);
 
                     return result;
-
-                    //return finer_black_zones;
                 }
             }
         }

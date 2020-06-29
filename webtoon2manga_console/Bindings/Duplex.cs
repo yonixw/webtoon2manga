@@ -7,6 +7,7 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Threading.Tasks;
+using webtoon2manga_console.Tools;
 
 namespace webtoon2manga_console.Bindings
 {
@@ -48,14 +49,16 @@ namespace webtoon2manga_console.Bindings
         public int columnCount;
         public float repeatColumnPercent = 2.3f;
         public float padPercent = 2.3f;
+        public LoggerHelper log;
 
-        public Duplex(Size pageSize,
+        public Duplex(LoggerHelper log, Size pageSize,
             int column, float repeatColPercent = 2.3f, float padPercent = 2.3f)
         {
             this.pageSize = pageSize;
             this.columnCount = column;
             this.repeatColumnPercent = repeatColPercent;
             this.padPercent = padPercent;
+            this.log = log;
         }
 
 
@@ -110,7 +113,7 @@ namespace webtoon2manga_console.Bindings
 
         static Pen borderPen = new Pen(Color.Black, 4);
 
-        public void saveCahpterFragmentsIntoPNG_LTR(List<PageFragmnet> allFragments, string prefix, string outputFolder)
+        public void saveCahpterFragmentsInto_PNG_LTR(List<PageFragmnet> allFragments, string prefix, string outputFolder)
         {
             int faceNumber = 0;
 
@@ -124,6 +127,7 @@ namespace webtoon2manga_console.Bindings
             while (fragmentIndex < allFragments.Count)
             {
                 // New Face
+                log.i("Building duplex Face No." + faceNumber);
                 using (Bitmap faceBit = new Bitmap(pageSize.Width, pageSize.Height))
                 {
                     using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(faceBit))
@@ -140,6 +144,7 @@ namespace webtoon2manga_console.Bindings
                             g.DrawRectangle(borderPen, area);
                             if (fragmentIndex < allFragments.Count)
                             {
+                                log.i("Reading fragment " + fragmentIndex + " from " + Path.GetFileName(allFragments[fragmentIndex].pageSource.filpath));
                                 using (Image fragSource = Bitmap.FromFile(allFragments[fragmentIndex].pageSource.filpath))
                                 {
                                     g.DrawImage(fragSource, area, allFragments[fragmentIndex].Transform, GraphicsUnit.Pixel);
@@ -149,7 +154,7 @@ namespace webtoon2manga_console.Bindings
                         }
                     }
                     faceBit.Save(
-                        Path.Combine(outputFolder, string.Format("{0}_{1}.png", prefix, faceNumber))
+                        Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, faceNumber))
                     );
                     faceNumber++;
                 }

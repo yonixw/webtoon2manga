@@ -98,7 +98,7 @@ namespace webtoon2manga_console
         }
 
         delegate void fileProcess(string file, string output_file, LoggerHelper log);
-        static void ProcessFile(string tag, string file, string outputFolder, fileProcess callback)
+        static void TryProcessFile(string tag, string file, string outputFolder, fileProcess callback)
         {
             LoggerHelper log = new LoggerHelper(tag);
             try
@@ -130,13 +130,23 @@ namespace webtoon2manga_console
             }
         }
 
-        private static void ProcessAllFiles(SharedOptions opt, Action<string> _file_job)
+        private static void ProcessAllFiles(SharedOptions opt,
+                Action<string> singleFileJob,
+                Action<string,DirectoryInfo> nestedFileJob = null, Action<string,DirectoryInfo,bool> onDirecotry = null)
         {
             var files = opt.Files.ToArray();
             log.i(LoggerHelper.Stringify("Files", files));
             foreach (string f in files)
             {
-                _file_job(f);
+                FileInfo _fi = new FileInfo(f);
+                if (_fi.Exists)
+                {
+                    singleFileJob(f);
+                }
+                else
+                {
+                    log.e("Can't find input file '" + f + "', skipping");
+                }
             }
 
             var dirs = opt.Folders.ToArray();
@@ -146,14 +156,26 @@ namespace webtoon2manga_console
                 DirectoryInfo _di = new DirectoryInfo(d);
                 if (_di.Exists)
                 {
-                    foreach (FileInfo fi in _di.GetFiles("*.*", SearchOption.AllDirectories))
+                    foreach (DirectoryInfo _recDi in _di.EnumerateDirectories("*", SearchOption.AllDirectories))
                     {
-                        _file_job(fi.FullName);
+                        onDirecotry?.Invoke(d,_recDi, true); // start?
+                        foreach (FileInfo fileInDir in _recDi.GetFiles())
+                        {
+                            if (nestedFileJob != null)
+                            {
+                                nestedFileJob(fileInDir.FullName, fileInDir.Directory);
+                            }
+                            else
+                            {
+                                singleFileJob(fileInDir.FullName);
+                            }
+                        }
+                        onDirecotry?.Invoke(d,_recDi, false); // start?
                     }
                 }
                 else
                 {
-                    log.e("Can't find dir '" + d + "', skipping");
+                    log.e("Can't find input dir '" + d + "', skipping");
                 }
             }
         }
@@ -162,7 +184,7 @@ namespace webtoon2manga_console
         {
             Action<string> _file_job = new Action<string>((string input_file) =>
             {
-                ProcessFile("color-convert", input_file, opt.OutputFolder, (file, outfile, log) =>
+                TryProcessFile("color-convert", input_file, opt.OutputFolder, (file, outfile, log) =>
                 {
                     using (var fileResult = RemoveBlack.FromFile(file,opt.fuzz, opt.UsePencilTile))
                     {
@@ -170,39 +192,69 @@ namespace webtoon2manga_console
                     }
                 });
             });
-
             ProcessAllFiles(opt, _file_job);
         }
 
-       
-
         static void Duplex(DuplexOptions opt)
         {
-            Duplex d = new Duplex(TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
-            List<PageFragmnet> fragments = new List<PageFragmnet>();
+            Duplex duplexBuilder = new Duplex(new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
 
             Action<string> _file_job = new Action<string>((string input_file) =>
             {
-                 ProcessFile("duplex-job", input_file, opt.OutputFolder, (file, output_file,log) =>
+                TryProcessFile("duplex-job-single", input_file, opt.OutputFolder, (file, output_file,log) =>
                  {
-                     log.i(string.Format("Source: {0}\nTarget: {1}", file, output_file));
-                     var toon = new WebtoonPage()
-                     {
-                         filpath = input_file
-                     };
-                     using (MagickImage img = new MagickImage(file))
-                     {
-                         toon.height = img.Height;
-                         toon.width = img.Width;
-                     }
-
-                     fragments.AddRange(d.splitPageLandscape(toon));
+                     duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+                         SplitFile(opt, input_file, file, output_file, log, duplexBuilder),
+                         "",
+                         opt.OutputFolder);
                  });
             });
 
-            ProcessAllFiles(opt, _file_job);
 
-            d.saveCahpterFragmentsIntoPNG_LTR(fragments, "", opt.OutputFolder);
+            List<PageFragmnet> dirFragments = new List<PageFragmnet>();
+            Action<string, DirectoryInfo> _file_nested_job = new Action<string, DirectoryInfo>((string input_file, DirectoryInfo dir) =>
+            {
+                TryProcessFile("duplex-job-nested", input_file, opt.OutputFolder, (file, output_file, log) =>
+                {
+                    dirFragments.AddRange(
+                        SplitFile(opt, input_file, file, output_file, log,duplexBuilder));
+                });
+            });
+
+            Action<string,DirectoryInfo, bool> onDir = new Action<string,DirectoryInfo, bool>(
+                (string inputFolder,DirectoryInfo currentDir, bool started) =>
+             {
+                 if(!started)
+                 {
+                     DirectoryInfo currentOutputDir = new DirectoryInfo(currentDir.FullName.Replace(inputFolder, opt.OutputFolder));
+                     if (!currentDir.Exists)
+                         currentDir.Create();
+                     duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(dirFragments, "",currentDir.FullName);
+                 }
+                 else
+                 {
+                     dirFragments = new List<PageFragmnet>();
+                 }
+             });
+
+            ProcessAllFiles(opt, _file_job,nestedFileJob: _file_nested_job);
+
+        }
+
+        private static List<PageFragmnet> SplitFile(
+            DuplexOptions opt, string input_file, string file, string output_file, LoggerHelper log, Duplex d)
+        {
+            log.i(string.Format("Splitting strip: '" + file + "'"));
+            var toon = new WebtoonPage()
+            {
+                filpath = input_file
+            };
+            using (MagickImage img = new MagickImage(file))
+            {
+                toon.height = img.Height;
+                toon.width = img.Width;
+            }
+            return d.splitPageLandscape(toon);         
         }
     }
 }
