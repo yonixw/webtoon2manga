@@ -17,6 +17,9 @@ namespace webtoon2manga_console
 
     class SharedOptions
     {
+        [Option("orderbyname", Default = true, HelpText = "Shoulde we order by name or time?")]
+        public bool? OderByName { get; set; }
+
         [Option('f', "file", HelpText = "Input files")]
         public IEnumerable<string> Files { get; set; }
 
@@ -60,6 +63,8 @@ namespace webtoon2manga_console
     {
         static LoggerHelper log = new LoggerHelper("MAIN");
 
+        static Func<System.IO.FileSystemInfo, object> GlobalOrderFunc = (si) => si.CreationTime;
+
         static void Main(string[] args)
         {
             var args_parsed = Parser.Default.ParseArguments<ColorOptions, DuplexOptions>(args)
@@ -67,6 +72,8 @@ namespace webtoon2manga_console
                 {
                     ImageMagick.ResourceLimits.Memory = (ulong)options.LimitMB * (ulong)Math.Pow(1024, 2); // 2=MB, 3=GB ...
 
+                    if (options.OderByName ?? true)
+                        GlobalOrderFunc = (si) => si.Name;
                     Color(options);
 
                     if (options.Pause)
@@ -76,6 +83,8 @@ namespace webtoon2manga_console
                 {
                     ImageMagick.ResourceLimits.Memory = (ulong)options.LimitMB * (ulong)Math.Pow(1024, 2); // 2=MB, 3=GB ...
 
+                    if (options.OderByName ?? true)
+                        GlobalOrderFunc = (si) => si.Name;
                     Duplex(options);
 
                     if (options.Pause)
@@ -134,48 +143,46 @@ namespace webtoon2manga_console
                 Action<string> singleFileJob,
                 Action<string,DirectoryInfo,string> nestedFileJob = null, Action<string,DirectoryInfo,bool> onDirecotry = null)
         {
-            var files = opt.Files.ToArray();
-            log.i(LoggerHelper.Stringify("Files", files));
-            foreach (string f in files)
+            log.i(LoggerHelper.Stringify("Files", opt.Files.ToArray()));
+            var files = opt.Files.Select((f)=>new FileInfo(f)).OrderBy(GlobalOrderFunc);
+            foreach (var _input_fi in files)
             {
-                FileInfo _fi = new FileInfo(f);
-                if (_fi.Exists)
+                if (_input_fi.Exists)
                 {
-                    singleFileJob(f);
+                    singleFileJob(_input_fi.FullName);
                 }
                 else
                 {
-                    log.e("Can't find input file '" + f + "', skipping");
+                    log.e("Can't find input file '" + _input_fi.FullName + "', skipping");
                 }
             }
 
-            var dirs = opt.Folders.ToArray();
-            log.i(LoggerHelper.Stringify("Folders", dirs));
-            foreach (string d in dirs)
+            log.i(LoggerHelper.Stringify("Folders", opt.Folders.ToArray()));
+            var dirs = opt.Folders.Select((d) => new DirectoryInfo(d)).OrderBy(GlobalOrderFunc).Cast<DirectoryInfo>();
+            foreach (var _input_di in dirs)
             {
-                DirectoryInfo _di = new DirectoryInfo(d);
-                if (_di.Exists)
+                if (_input_di.Exists)
                 {
-                    foreach (DirectoryInfo _recDi in _di.EnumerateDirectories("*", SearchOption.AllDirectories))
+                    foreach (DirectoryInfo _recDi in _input_di.GetDirectories("*", SearchOption.AllDirectories).OrderBy(GlobalOrderFunc))
                     {
-                        onDirecotry?.Invoke(d,_recDi, true); // start?
-                        foreach (FileInfo fileInDir in _recDi.GetFiles())
+                        onDirecotry?.Invoke(_input_di.FullName, _recDi, true); // start?
+                        foreach (FileInfo fileInDir in _recDi.GetFiles().OrderBy(GlobalOrderFunc))
                         {
                             if (nestedFileJob != null)
                             {
-                                nestedFileJob(fileInDir.FullName, fileInDir.Directory,d);
+                                nestedFileJob(fileInDir.FullName, fileInDir.Directory, _input_di.FullName);
                             }
                             else
                             {
                                 singleFileJob(fileInDir.FullName);
                             }
                         }
-                        onDirecotry?.Invoke(d,_recDi, false); // start?
+                        onDirecotry?.Invoke(_input_di.FullName, _recDi, false); // start?
                     }
                 }
                 else
                 {
-                    log.e("Can't find input dir '" + d + "', skipping");
+                    log.e("Can't find input dir '" + _input_di.FullName + "', skipping");
                 }
             }
         }
