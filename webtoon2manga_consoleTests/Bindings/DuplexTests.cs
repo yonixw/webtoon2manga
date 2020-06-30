@@ -170,11 +170,11 @@ namespace webtoon2manga_console.Bindings.Tests
             }
         }
 
+        
+
         [TestMethod()]
         public void CombiningTwoSplittedStripsTogether()
         {
-           
-
             Size A4 = Bindings.TemplatesTools.getA4(96, false);
             Duplex duplexBuilder = new Duplex(
                     new Tools.LoggerHelper("test"),
@@ -199,6 +199,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 height = (int)(colH * 1.2f),
             };
 
+            DrawMock mock = new DrawMock();
             List<PageFragmnet> fragmantsToRead = new List<PageFragmnet>();
             fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page));
             fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page2));
@@ -207,10 +208,61 @@ namespace webtoon2manga_console.Bindings.Tests
                 fragmantsToRead,
                 "",
                 "",
-                dryRun: true
+                mock: mock
                 );
 
             Assert.AreEqual(3, usedColumns);
+            for (int i = 0; i < usedColumns; i++)
+            {
+                Assert.IsFalse(mock.isExpanded(i));
+            }
+        }
+
+
+        [TestMethod()]
+        public void CombiningTwoSplittedStripsTogether2()
+        {
+
+
+            Size A4 = Bindings.TemplatesTools.getA4(96, false);
+            Duplex duplexBuilder = new Duplex(
+                    new Tools.LoggerHelper("test"),
+                    A4,
+                    3,
+                    padPercent: 0f
+            );
+
+            WebtoonPage page = new WebtoonPage()
+            {
+                filpath = "",
+                width = 690,
+                height = 212,
+            };
+            WebtoonPage page2 = new WebtoonPage()
+            {
+                filpath = "",
+                width = 690,
+                height = 1885,
+            };
+
+            DrawMock mock = new DrawMock();
+
+            List<PageFragmnet> fragmantsToRead = new List<PageFragmnet>();
+            fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page));
+            fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page2));
+
+            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+                fragmantsToRead,
+                "",
+                "",
+                mock: mock
+                );
+
+            Assert.AreEqual(2, usedColumns);
+            for(int i = 0; i < usedColumns; i++)
+            {
+                Assert.IsFalse(mock.isExpanded(i));
+            }
         }
     }
 }
