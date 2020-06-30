@@ -103,7 +103,16 @@ namespace webtoon2manga_console.Bindings
                     lastY -= reapeatToonScale;
 
                 PointF startPoint = new PointF(0, lastY);
-                result.Add(new PageFragmnet(startPoint, fragSize) { pageSource = toon});
+                SizeF actualFragSize = fragSize;
+                if (fragSize.Height > toonH- lastY)
+                {
+                    actualFragSize = new SizeF(fragSize.Width, toonH - lastY);
+                }
+
+                result.Add(
+                    new PageFragmnet(startPoint, actualFragSize) {
+                        pageSource = toon
+                    });
 
                 lastY += (int)(toonH / fragsBeforeRepeatSplit);
             }
@@ -113,7 +122,7 @@ namespace webtoon2manga_console.Bindings
 
         static Pen borderPen = new Pen(Color.Black, 4);
 
-        public void saveCahpterFragmentsInto_PNG_LTR(List<PageFragmnet> allFragments, string prefix, string outputFolder)
+        public int saveCahpterFragmentsInto_PNG_LTR(List<PageFragmnet> allFragments, string prefix, string outputFolder, bool dryRun = false)
         {
             int faceNumber = 0;
 
@@ -123,16 +132,18 @@ namespace webtoon2manga_console.Bindings
             int finalColH = pageSize.Height - 2 * absolutePad;
 
             int fragmentIndex = 0;
+            int writeColCount = 0;
 
             while (fragmentIndex < allFragments.Count)
             {
                 // New Face
                 log.i("Building duplex Face No." + faceNumber);
-                using (Bitmap faceBit = new Bitmap(pageSize.Width, pageSize.Height))
+                using (Bitmap faceBit = dryRun ? new Bitmap(1,1) : new Bitmap(pageSize.Width, pageSize.Height))
                 {
                     using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(faceBit))
                     {
-                        g.FillRectangle(Brushes.White, new Rectangle(0, 0, pageSize.Width, pageSize.Height));
+                        if (!dryRun)
+                            g.FillRectangle(Brushes.White, new Rectangle(0, 0, pageSize.Width, pageSize.Height));
                         for (int i = 0; i < columnCount; i++)
                         {
                             int startY = absolutePad;
@@ -141,24 +152,32 @@ namespace webtoon2manga_console.Bindings
                             int endX = startX + finalColW;
 
                             Rectangle area = new Rectangle(startX, startY, (endX - startX), (endY - startY));
-                            g.DrawRectangle(borderPen, area);
+                            if (!dryRun)
+                                g.DrawRectangle(borderPen, area);
                             if (fragmentIndex < allFragments.Count)
                             {
                                 log.i("Reading fragment " + fragmentIndex + " from " + Path.GetFileName(allFragments[fragmentIndex].pageSource.filpath));
-                                using (Image fragSource = Bitmap.FromFile(allFragments[fragmentIndex].pageSource.filpath))
+                                if(!dryRun)
                                 {
-                                    g.DrawImage(fragSource, area, allFragments[fragmentIndex].Transform, GraphicsUnit.Pixel);
+                                    using (Image fragSource = Bitmap.FromFile(allFragments[fragmentIndex].pageSource.filpath))
+                                    {
+                                        g.DrawImage(fragSource, area, allFragments[fragmentIndex].Transform, GraphicsUnit.Pixel);
+                                    }
                                 }
                                 fragmentIndex++;
+                                writeColCount++;
                             }
                         }
                     }
-                    faceBit.Save(
-                        Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, faceNumber))
+                    if (!dryRun)
+                        faceBit.Save(
+                            Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, faceNumber))
                     );
                     faceNumber++;
                 }
             }
+
+            return writeColCount;
         }
 
     }

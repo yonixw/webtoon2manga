@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Drawing;
 
 namespace webtoon2manga_console.Bindings.Tests
 {
@@ -14,7 +15,7 @@ namespace webtoon2manga_console.Bindings.Tests
         public static void printFrags(IEnumerable<PageFragmnet> list)
         {
             int i = 0;
-            foreach(var frag in list)
+            foreach (var frag in list)
             {
                 Console.WriteLine("#" + i + ", " + frag.ToString());
                 i++;
@@ -57,7 +58,9 @@ namespace webtoon2manga_console.Bindings.Tests
                 width = 800,
                 height = 12480,
             };
-            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), Bindings.TemplatesTools.getA4(96, false),
+            List<PageFragmnet> listToPrint = new Duplex(
+                new Tools.LoggerHelper("test"),
+                Bindings.TemplatesTools.getA4(96, false),
                     3,
                     padPercent: 2.3f
             ).splitPageLandscape(
@@ -76,16 +79,17 @@ namespace webtoon2manga_console.Bindings.Tests
                 width = 800,
                 height = 12480,
             };
-            int[] dpps = new int[] {96,150,300,600 };
+            int[] dpps = new int[] { 96, 150, 300, 600 };
             foreach (int dpp in dpps)
             {
-              List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"),
-                        Bindings.TemplatesTools.getA4(dpp, false),
-                        3,
-                        padPercent: 2.3f
-                ).splitPageLandscape(
-                        page
-                );
+                List<PageFragmnet> listToPrint = new Duplex(
+                          new Tools.LoggerHelper("test"),
+                          Bindings.TemplatesTools.getA4(dpp, false),
+                          3,
+                          padPercent: 2.3f
+                  ).splitPageLandscape(
+                          page
+                  );
 
                 Assert.AreEqual(8, listToPrint.Count);
             }
@@ -102,35 +106,111 @@ namespace webtoon2manga_console.Bindings.Tests
                 height = 12480,
             };
 
-            float padds = 0.023f;
             var PageA4 = Bindings.TemplatesTools.getA4(96, false);
 
-            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), Bindings.TemplatesTools.getA4(96, false),
+            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), PageA4,
                     3,
-                    padPercent: 2.3f
+                    padPercent: 2.3f,
+                    repeatColPercent: 2.3f
             ).splitPageLandscape(
                     page
             );
 
+            Assert.IsTrue(listToPrint.Count > 1);
             if (listToPrint.Count > 1)
             {
                 printFrags(listToPrint);
 
                 int TotalHeight = 0;
-                TotalHeight += listToPrint[1].Transform.Y - listToPrint[0].Transform.Y;
-                for (int i = 1; i < listToPrint.Count - 1; i++)
+                for (int i = 0; i < listToPrint.Count; i++)
                 {
-                    TotalHeight += listToPrint[i+1].Transform.Y - listToPrint[i].Transform.Y;
+                    TotalHeight += listToPrint[i].Transform.Height;
                 }
-                TotalHeight += listToPrint[listToPrint.Count - 1].Transform.Height;
 
-                float expected_new_height = page.height * (1 + padds);
-                Console.WriteLine(string.Format("TotalH: {0}, OriginalH: {1}, Estimated: {2}",
-                        TotalHeight, page.height, expected_new_height
-                    ));
-
-                Assert.IsTrue(TotalHeight >= expected_new_height);
+                Assert.AreEqual(12760,TotalHeight);
             }
+        }
+
+        [TestMethod()]
+        public void splitFragCompletness2()
+        {
+            var PageA4 = Bindings.TemplatesTools.getA4(96, false);
+
+            int stripW = PageA4.Width / 3; // 1/3 so height is exact
+            int stripH = PageA4.Height * 2 + PageA4.Height / 2; //2.5
+
+            WebtoonPage toonStrip = new WebtoonPage()
+            {
+                filpath = "",
+                width = stripW ,
+                height = stripH,
+            };
+
+            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), PageA4,
+                    3,
+                    padPercent: 0,
+                    repeatColPercent: 0
+            ).splitPageLandscape(
+                    toonStrip
+            );
+
+            Assert.IsTrue(listToPrint.Count > 1);
+            if (listToPrint.Count > 1)
+            {
+                printFrags(listToPrint);
+
+                int TotalHeight = 0;
+                for (int i = 0; i < listToPrint.Count; i++)
+                {
+                    TotalHeight += listToPrint[i].Transform.Height;
+                }
+
+                float expected_new_height = stripH;
+                Assert.AreEqual(expected_new_height, TotalHeight);
+            }
+        }
+
+        [TestMethod()]
+        public void CombiningTwoSplittedStripsTogether()
+        {
+           
+
+            Size A4 = Bindings.TemplatesTools.getA4(96, false);
+            Duplex duplexBuilder = new Duplex(
+                    new Tools.LoggerHelper("test"),
+                    A4,
+                    3,
+                    padPercent: 0f
+            );
+
+            int colW = A4.Width / 3;
+            int colH = A4.Height;
+
+            WebtoonPage page = new WebtoonPage()
+            {
+                filpath = "",
+                width = colW,
+                height = (int)(colH * 1.2f),
+            };
+            WebtoonPage page2 = new WebtoonPage()
+            {
+                filpath = "",
+                width = colW,
+                height = (int)(colH * 1.2f),
+            };
+
+            List<PageFragmnet> fragmantsToRead = new List<PageFragmnet>();
+            fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page));
+            fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page2));
+
+            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+                fragmantsToRead,
+                "",
+                "",
+                dryRun: true
+                );
+
+            Assert.AreEqual(3, usedColumns);
         }
     }
 }
