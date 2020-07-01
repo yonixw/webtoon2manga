@@ -15,7 +15,7 @@ namespace webtoon2manga_console.Bindings.Tests
         public void drawTest()
         {
             DrawMock g = new DrawMock();
-            g.setSize(0, new System.Drawing.Rectangle(1, 1, 10, 10));
+            g.setSize(0, new System.Drawing.Rectangle(1,1, 10, 10));
 
             Assert.IsFalse(g.isExpanded(0));
             g.draw(0, new System.Drawing.Rectangle(2, 3, 5, 6));

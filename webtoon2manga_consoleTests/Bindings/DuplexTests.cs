@@ -58,7 +58,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 width = 800,
                 height = 12480,
             };
-            List<PageFragmnet> listToPrint = new Duplex(
+            List<PageFragmnet> listToPrint = new DuplexBuilder(
                 new Tools.LoggerHelper("test"),
                 Bindings.TemplatesTools.getA4(96, false),
                     3,
@@ -106,7 +106,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 width = 690,
                 height = 1885,
             };
-            List<PageFragmnet> listToPrint = new Duplex(
+            List<PageFragmnet> listToPrint = new DuplexBuilder(
                 new Tools.LoggerHelper("test"),
                 Bindings.TemplatesTools.getA4(96, false),
                     3,
@@ -134,7 +134,7 @@ namespace webtoon2manga_console.Bindings.Tests
             int[] dpps = new int[] { 96, 150, 300, 600 };
             foreach (int dpp in dpps)
             {
-                List<PageFragmnet> listToPrint = new Duplex(
+                List<PageFragmnet> listToPrint = new DuplexBuilder(
                           new Tools.LoggerHelper("test"),
                           Bindings.TemplatesTools.getA4(dpp, false),
                           3,
@@ -160,7 +160,7 @@ namespace webtoon2manga_console.Bindings.Tests
 
             var PageA4 = Bindings.TemplatesTools.getA4(96, false);
 
-            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), PageA4,
+            List<PageFragmnet> listToPrint = new DuplexBuilder(new Tools.LoggerHelper("test"), PageA4,
                     3,
                     padPercent: 2.3f,
                     repeatColPercent: 2.3f
@@ -198,7 +198,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 height = stripH,
             };
 
-            List<PageFragmnet> listToPrint = new Duplex(new Tools.LoggerHelper("test"), PageA4,
+            List<PageFragmnet> listToPrint = new DuplexBuilder(new Tools.LoggerHelper("test"), PageA4,
                     3,
                     padPercent: 0,
                     repeatColPercent: 0
@@ -228,7 +228,7 @@ namespace webtoon2manga_console.Bindings.Tests
         public void CombiningTwoSplittedStripsTogether()
         {
             Size A4 = Bindings.TemplatesTools.getA4(96, false);
-            Duplex duplexBuilder = new Duplex(
+            DuplexBuilder duplexBuilder = new DuplexBuilder(
                     new Tools.LoggerHelper("test"),
                     A4,
                     3,
@@ -240,13 +240,13 @@ namespace webtoon2manga_console.Bindings.Tests
 
             WebtoonPage page = new WebtoonPage()
             {
-                filpath = "",
+                filpath = "p1.png",
                 width = colW,
                 height = (int)(colH * 1.2f),
             };
             WebtoonPage page2 = new WebtoonPage()
             {
-                filpath = "",
+                filpath = "p2.png",
                 width = colW,
                 height = (int)(colH * 1.2f),
             };
@@ -258,20 +258,26 @@ namespace webtoon2manga_console.Bindings.Tests
 
             printFrags(fragmantsToRead);
 
-            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR2(
+            var outputPages = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
                 fragmantsToRead,
                 "",
                 "",
                 mock: mock
                 );
 
-            Assert.AreEqual(3, usedColumns);
+            var usedColumns = outputPages.Sum((p) => p.ColCount());
+
+            CheckDrawInsideBounds(mock, usedColumns,3 );
+        }
+
+        private static void CheckDrawInsideBounds(DrawMock mock, int usedColumns, int expectedCol)
+        {
+            Assert.AreEqual(expectedCol, usedColumns);
             for (int i = 0; i < usedColumns; i++)
             {
                 Assert.IsFalse(mock.isExpanded(i));
             }
         }
-
 
         [TestMethod()]
         public void CombiningTwoSplittedStripsTogether2()
@@ -279,7 +285,7 @@ namespace webtoon2manga_console.Bindings.Tests
 
 
             Size A4 = Bindings.TemplatesTools.getA4(96, false);
-            Duplex duplexBuilder = new Duplex(
+            DuplexBuilder duplexBuilder = new DuplexBuilder(
                     new Tools.LoggerHelper("test"),
                     A4,
                     3,
@@ -288,13 +294,13 @@ namespace webtoon2manga_console.Bindings.Tests
 
             WebtoonPage page = new WebtoonPage()
             {
-                filpath = "",
+                filpath = "p1.png",
                 width = 690,
                 height = 212,
             };
             WebtoonPage page2 = new WebtoonPage()
             {
-                filpath = "",
+                filpath = "p2.png",
                 width = 690,
                 height = 1885,
             };
@@ -308,17 +314,83 @@ namespace webtoon2manga_console.Bindings.Tests
 
             printFrags(fragmantsToRead);
 
-            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR2(
-                fragmantsToRead,
-                "",
-                "",
-                mock: mock
-                );
+            var outputPages = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+               fragmantsToRead,
+               "",
+               "",
+               mock: mock
+               );
 
-            Assert.AreEqual(2, usedColumns);
-            for(int i = 0; i < usedColumns; i++)
+            var usedColumns = outputPages.Sum((p) => p.ColCount());
+            var usedPrintOrders  = outputPages.Sum((p) => (p.GetCols.Sum((c) => c.getPrintSources.Count) ));
+            Assert.AreEqual(3, usedPrintOrders);
+
+            CheckDrawInsideBounds(mock, usedColumns, 2);
+        }
+
+
+        [TestMethod()]
+        public void CombiningTwoSplittedStripsTogether_ConsistentY()
+        {
+
+
+            Size A4 = Bindings.TemplatesTools.getA4(96, false);
+            DuplexBuilder duplexBuilder = new DuplexBuilder(
+                    new Tools.LoggerHelper("test"),
+                    A4,
+                    3,
+                    padPercent: 0f
+            );
+
+            WebtoonPage page = new WebtoonPage()
             {
-                Assert.IsFalse(mock.isExpanded(i));
+                filpath = "p1.png",
+                width = 690,
+                height = 212,
+            };
+            WebtoonPage page2 = new WebtoonPage()
+            {
+                filpath = "p2.png",
+                width = 690,
+                height = 1885,
+            };
+
+            DrawMock mock = new DrawMock();
+
+
+            List<PageFragmnet> fragmantsToRead = new List<PageFragmnet>();
+            fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page));
+            fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page2));
+
+            printFrags(fragmantsToRead);
+
+            var outputPages = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+               fragmantsToRead,
+               "",
+               "",
+               mock: mock
+               );
+
+            var usedColumns = outputPages.Sum((p) => p.ColCount());
+
+            CheckDrawInsideBounds(mock, usedColumns, 2);
+            VerifyConsistentOffset(outputPages);
+        }
+
+        private static void VerifyConsistentOffset(List<OutputPage> outputPages)
+        {
+            foreach (var p in outputPages)
+            {
+                foreach (var c in p.GetCols)
+                {
+                    int Y = 0;
+                    foreach (var ps in c.getPrintSources)
+                    {
+                        Assert.AreEqual(Y, ps.PartialTarget.Y);
+                        Y += ps.PartialTarget.Height;
+                    }
+                    Assert.IsTrue(Y <= c.getArea.Height);
+                }
             }
         }
     }

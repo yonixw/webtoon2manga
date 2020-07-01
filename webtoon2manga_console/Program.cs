@@ -218,7 +218,7 @@ namespace webtoon2manga_console
 
         static void Duplex(DuplexOptions opt)
         {
-            Duplex duplexBuilder = new Duplex(new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
+            DuplexBuilder duplexBuilder = new DuplexBuilder(new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
 
             Action<string> _file_job = new Action<string>((string input_file) =>
             {
@@ -252,7 +252,7 @@ namespace webtoon2manga_console
                      if (!currentOutputDir.Exists)
                          currentOutputDir.Create();
                      log.i("Saving fragments after folder to " + currentOutputDir.FullName);
-                     duplexBuilder.saveCahpterFragmentsInto_PNG_LTR2(dirFragments, "",currentOutputDir.FullName);
+                     duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(dirFragments, "",currentOutputDir.FullName);
                  }
                  else
                  {
@@ -265,7 +265,7 @@ namespace webtoon2manga_console
         }
 
         private static List<PageFragmnet> SplitFile(
-            DuplexOptions opt, string input_file, string file, string output_file, LoggerHelper log, Duplex d)
+            DuplexOptions opt, string input_file, string file, string output_file, LoggerHelper log, DuplexBuilder d)
         {
             log.i(string.Format("Splitting strip: '" + file + "'"));
             var toon = new WebtoonPage()
