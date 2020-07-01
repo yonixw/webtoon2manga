@@ -218,7 +218,8 @@ namespace webtoon2manga_console
 
         static void Duplex(DuplexOptions opt)
         {
-            DuplexBuilder duplexBuilder = new DuplexBuilder(new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
+            DuplexBuilder duplexBuilder = new DuplexBuilder(
+                new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
 
             Action<string> _file_job = new Action<string>((string input_file) =>
             {

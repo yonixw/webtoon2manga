@@ -235,20 +235,15 @@ namespace webtoon2manga_console.Bindings
 
             float fragsBeforeRepeatSplit = finalToonH * 1f / finalColH;
 
-            int finalFrags = (int)Math.Ceiling((finalToonH + repeatAddedHeight) * 1f / finalColH);
+            int finalFrags = (int)Math.Ceiling((finalToonH ) * 1f / finalColH);
             //==================================
 
             
             int lastY = 0;
-            int reapeatToonScale = (int)((toonH / fragsBeforeRepeatSplit) * 0.01 * repeatColumnPercent);
             SizeF fragSize = new SizeF(toonW, toonH / fragsBeforeRepeatSplit);
 
             for(int i=0; i<finalFrags;i++)
             {
-                // First page without repeating from prev split
-                if (i > 0)
-                    lastY -= reapeatToonScale;
-
                 PointF startPoint = new PointF(0, lastY);
                 SizeF actualFragSize = fragSize;
                 if (fragSize.Height > toonH- lastY)
