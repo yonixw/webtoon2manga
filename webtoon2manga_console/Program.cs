@@ -146,10 +146,16 @@ namespace webtoon2manga_console
 
         private static void ProcessAllFiles(SharedOptions opt,
                 Action<string> singleFileJob,
-                Action<string,DirectoryInfo,string> nestedFileJob = null, Action<string,DirectoryInfo,bool> onDirecotry = null)
+                Action<string,DirectoryInfo,string> nestedFileJob = null,
+                Action<string,DirectoryInfo,bool> onDirecotry = null,
+                string fileExt = "*.*")
         {
             log.i(LoggerHelper.Stringify("Files", opt.Files.ToArray()));
-            var files = opt.Files.Select((f)=>new FileInfo(f)).OrderBy(GlobalOrderFunc);
+            string ext = fileExt.Split('.').LastOrDefault() ?? "";
+            var files = opt.Files
+                .Select((f)=>new FileInfo(f))
+                .Where((f)=>f.Name.EndsWith(ext))
+                .OrderBy(GlobalOrderFunc);
             foreach (var _input_fi in files)
             {
                 if (_input_fi.Exists)
@@ -166,12 +172,31 @@ namespace webtoon2manga_console
             var dirs = opt.Folders.Select((d) => new DirectoryInfo(d)).OrderBy(GlobalOrderFunc).Cast<DirectoryInfo>();
             foreach (var _input_di in dirs)
             {
+                var my_files = _input_di.GetFiles(fileExt).OrderBy(GlobalOrderFunc).Cast<FileInfo>();
+
+                if (my_files.Count() > 0)
+                {
+                    onDirecotry?.Invoke(_input_di.FullName, _input_di, true); // start?
+                    foreach (var _input_fi in my_files)
+                    {
+                        if (nestedFileJob != null)
+                        {
+                            nestedFileJob(_input_fi.FullName, _input_fi.Directory, _input_di.FullName);
+                        }
+                        else
+                        {
+                            singleFileJob(_input_fi.FullName);
+                        }
+                    }
+                    onDirecotry?.Invoke(_input_di.FullName, _input_di, false); // start?
+                }
+
                 if (_input_di.Exists)
                 {
                     foreach (DirectoryInfo _recDi in _input_di.GetDirectories("*", SearchOption.AllDirectories).OrderBy(GlobalOrderFunc))
                     {
                         onDirecotry?.Invoke(_input_di.FullName, _recDi, true); // start?
-                        foreach (FileInfo fileInDir in _recDi.GetFiles().OrderBy(GlobalOrderFunc))
+                        foreach (FileInfo fileInDir in _recDi.GetFiles(fileExt).OrderBy(GlobalOrderFunc))
                         {
                             if (nestedFileJob != null)
                             {
@@ -195,7 +220,7 @@ namespace webtoon2manga_console
 
         static void Color(ColorOptions opt)
         {
-            ConcurrentQueue<string[]> ColorJob = new ConcurrentQueue<string[]>();
+            ConcurrentQueue<string[]> ColorJobs = new ConcurrentQueue<string[]>();
 
             Action<string, string> convertFile = new Action<string, string>((string input_file, string outputFolder) =>
              {
@@ -206,7 +231,7 @@ namespace webtoon2manga_console
                      //    log.i("Writing to file: " + outfile);
                      //    fileResult.Write(outfile);
                      //}
-                     ColorJob.Enqueue(new string[] { file, outfile });
+                     ColorJobs.Enqueue(new string[] { file, outfile });
                  });
              });
 
@@ -223,20 +248,25 @@ namespace webtoon2manga_console
 
             ProcessAllFiles(opt, _file_job, nestedFileJob: _file_nested_job);
 
+            int allJobs = ColorJobs.Count;
             Action<Object> removeBlackAction = new Action<Object>((threadId) =>
             {
                 LoggerHelper log = new LoggerHelper("color-thread-" + threadId);
+                log.i("Worker " + threadId + " started...");
                 //https://stackoverflow.com/a/38396589/1997873
-                while (!ColorJob.IsEmpty)
+                while (!ColorJobs.IsEmpty)
                 {
                     string[] jobInfo;
-                    if (ColorJob.TryDequeue(out jobInfo))
+                    int currentJobsCount = ColorJobs.Count;
+                    log.w("Left " + currentJobsCount + "/" + allJobs
+                        + " (" + (100-(int)(100f * (currentJobsCount + 1) / (allJobs + 1))) + "%)");
+                    if (ColorJobs.TryDequeue(out jobInfo))
                     {
                         log.i("Starting job for " + jobInfo[0]);
                         using (var fileResult = RemoveBlack.FromFile(jobInfo[0], opt.fuzz, log, opt.UsePencilTile))
                         {
                             log.i("Writing to file: " + jobInfo[1]);
-                            fileResult.Write(jobInfo[1]);
+                            fileResult.Write(jobInfo[1]+"_png.png");
                         }
                     }
                 }
@@ -303,7 +333,7 @@ namespace webtoon2manga_console
                  }
              });
 
-            ProcessAllFiles(opt, _file_job,nestedFileJob: _file_nested_job,onDirecotry: onDir);
+            ProcessAllFiles(opt, _file_job,nestedFileJob: _file_nested_job,onDirecotry: onDir, fileExt: "*.png");
 
         }
 

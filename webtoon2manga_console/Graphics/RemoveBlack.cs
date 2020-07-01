@@ -60,7 +60,7 @@ namespace webtoon2manga_console.Graphics
             log.i("(4/9) Detecting black background (again)");
             black_zones = extarctZones1(source, fuzz: fuzz);
             log.i("(5/9) Remove black background small areas");
-            MagickImage finer_black_zones = (MagickImage)black_zones.Clone(); // removeSmallAreas2(black_zones);
+            MagickImage finer_black_zones = removeSmallAreas2(black_zones);
             black_zones.Dispose();
 
             log.i("(6/9) Black background as mask");
@@ -215,17 +215,7 @@ namespace webtoon2manga_console.Graphics
 
         static bool isPixelSame(MagickColor startColor,byte[] pixel, int byteCount,int offset)
         {
-            bool result = false;
-            if (pixel.Length == 1 || byteCount == 1)
-            {
-                result = Math.Abs(startColor.R - pixel[0]) < 10;
-            }
-            else
-            {
-                var color = GetColorBytes(pixel, offset,byteCount);
-                result = color.Equals(startColor);
-            }
-            return result;
+            return Math.Abs(startColor.R - pixel[0]) < 10;
         }
 
         static Size removeDoubleLines(MagickImage mask, MagickImage source)
