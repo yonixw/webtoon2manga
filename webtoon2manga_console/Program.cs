@@ -1,12 +1,14 @@
 ﻿using CommandLine;
 using ImageMagick;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using webtoon2manga_console.Bindings;
 using webtoon2manga_console.Graphics;
@@ -46,6 +48,9 @@ namespace webtoon2manga_console
 
         [Option('z', "fuzz", Default = 1, HelpText = "Fuzz (in %) for finding black color")]
         public int fuzz { get; set; }
+
+        [Option('w', "workers", Default = 1, HelpText = "Parallel Workers")]
+        public int workers { get; set; }
 
     }
 
@@ -187,17 +192,21 @@ namespace webtoon2manga_console
             }
         }
 
+
         static void Color(ColorOptions opt)
         {
+            ConcurrentQueue<string[]> ColorJob = new ConcurrentQueue<string[]>();
+
             Action<string, string> convertFile = new Action<string, string>((string input_file, string outputFolder) =>
              {
                  TryProcessFile("color-convert", input_file, outputFolder, (file, outfile, log) =>
                  {
-                     using (var fileResult = RemoveBlack.FromFile(file, opt.fuzz, log, opt.UsePencilTile))
-                     {
-                         log.i("Writing to file: " + outfile);
-                         fileResult.Write(outfile);
-                     }
+                     //using (var fileResult = RemoveBlack.FromFile(file, opt.fuzz, log, opt.UsePencilTile))
+                     //{
+                     //    log.i("Writing to file: " + outfile);
+                     //    fileResult.Write(outfile);
+                     //}
+                     ColorJob.Enqueue(new string[] { file, outfile });
                  });
              });
 
@@ -212,8 +221,41 @@ namespace webtoon2manga_console
                 convertFile(input_file, currentInputDir.FullName.Replace(inputFolderParam, opt.OutputFolder));
             });
 
-
             ProcessAllFiles(opt, _file_job, nestedFileJob: _file_nested_job);
+
+            Action<Object> removeBlackAction = new Action<Object>((threadId) =>
+            {
+                LoggerHelper log = new LoggerHelper("color-thread-" + threadId);
+                //https://stackoverflow.com/a/38396589/1997873
+                while (!ColorJob.IsEmpty)
+                {
+                    string[] jobInfo;
+                    if (ColorJob.TryDequeue(out jobInfo))
+                    {
+                        log.i("Starting job for " + jobInfo[0]);
+                        using (var fileResult = RemoveBlack.FromFile(jobInfo[0], opt.fuzz, log, opt.UsePencilTile))
+                        {
+                            log.i("Writing to file: " + jobInfo[1]);
+                            fileResult.Write(jobInfo[1]);
+                        }
+                    }
+                }
+            });
+
+            List<Thread> allWorkers = new List<Thread>();
+            for (int w=0;w<opt.workers;w++)
+            {
+                Thread worker = new Thread((object obj)=> removeBlackAction(obj));
+                worker.Start(w);
+                allWorkers.Add(worker);
+            }
+
+            log.i("Waiting for workers..");
+            foreach (var worker in allWorkers)
+            {
+                worker.Join();
+            }
+            log.i("All workers done!");
         }
 
         static void Duplex(DuplexOptions opt)
