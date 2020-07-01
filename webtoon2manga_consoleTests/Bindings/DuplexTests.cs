@@ -71,6 +71,58 @@ namespace webtoon2manga_console.Bindings.Tests
         }
 
         [TestMethod()]
+        public void splitPageTest2()
+        {
+            /*
+             * 	Webtoon
+                    W	690
+                    H	1885
+	
+	            A4
+	                 W  1123
+	                 H  794
+	
+                    Col	 3
+                    Pad 	25
+	
+                    FinalWidth	341
+                    FinalHeight	744
+	
+                    Webtoon	
+                    Scale	2.53360
+                    W	341
+                    H	931
+	
+                    Frag	7.15
+	
+                    SplitRepeat	25
+                    Total Cols	7.385215054
+
+            */
+
+            WebtoonPage page = new WebtoonPage()
+            {
+                filpath = "",
+                width = 690,
+                height = 1885,
+            };
+            List<PageFragmnet> listToPrint = new Duplex(
+                new Tools.LoggerHelper("test"),
+                Bindings.TemplatesTools.getA4(96, false),
+                    3,
+                    padPercent: 2.3f
+            ).splitPageLandscape(
+                    page
+            );
+
+            Assert.AreEqual(2, listToPrint.Count);
+        }
+
+
+        
+
+
+        [TestMethod()]
         public void splitPageAspectConsistency()
         {
             WebtoonPage page = new WebtoonPage()
@@ -124,7 +176,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 int TotalHeight = 0;
                 for (int i = 0; i < listToPrint.Count; i++)
                 {
-                    TotalHeight += listToPrint[i].Transform.Height;
+                    TotalHeight += listToPrint[i].SourceTransform.Height;
                 }
 
                 Assert.AreEqual(12760,TotalHeight);
@@ -162,7 +214,7 @@ namespace webtoon2manga_console.Bindings.Tests
                 int TotalHeight = 0;
                 for (int i = 0; i < listToPrint.Count; i++)
                 {
-                    TotalHeight += listToPrint[i].Transform.Height;
+                    TotalHeight += listToPrint[i].SourceTransform.Height;
                 }
 
                 float expected_new_height = stripH;
@@ -204,7 +256,9 @@ namespace webtoon2manga_console.Bindings.Tests
             fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page));
             fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page2));
 
-            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+            printFrags(fragmantsToRead);
+
+            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR2(
                 fragmantsToRead,
                 "",
                 "",
@@ -247,11 +301,14 @@ namespace webtoon2manga_console.Bindings.Tests
 
             DrawMock mock = new DrawMock();
 
+
             List<PageFragmnet> fragmantsToRead = new List<PageFragmnet>();
             fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page));
             fragmantsToRead.AddRange(duplexBuilder.splitPageLandscape(page2));
 
-            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(
+            printFrags(fragmantsToRead);
+
+            int usedColumns = duplexBuilder.saveCahpterFragmentsInto_PNG_LTR2(
                 fragmantsToRead,
                 "",
                 "",

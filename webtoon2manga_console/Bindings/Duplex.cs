@@ -13,25 +13,35 @@ namespace webtoon2manga_console.Bindings
 {
     public class PageFragmnet
     {
-        public Rectangle Transform;
+        public Rectangle SourceTransform;
+        public Rectangle TargetTransform;
         public WebtoonPage pageSource;
 
         public PageFragmnet(int x,int y,int w,int h)
         {
-            Transform = new Rectangle(x, y, w, h);    
+            SourceTransform = new Rectangle(x, y, w, h);    
         }
 
         public PageFragmnet(PointF pos, SizeF size)
         {
-            Transform = new Rectangle((int)pos.X, (int)pos.Y, (int)size.Width, (int)size.Height);
+            SourceTransform = new Rectangle((int)pos.X, (int)pos.Y, (int)size.Width, (int)size.Height);
         }
+
+        public void setTargetAspect(float Aspect)
+        {
+            TargetTransform = new Rectangle(
+                    SourceTransform.X, SourceTransform.Y,
+                    (int)(SourceTransform.Width*Aspect), (int)(SourceTransform.Height * Aspect)
+                    );
+        }
+
 
         public override string ToString()
         {
             return string.Format("({0},{1})+[{2},{3}]=({4},{5})",
-                Transform.X,Transform.Y,
-                0,Transform.Height,
-                Transform.X,Transform.Y + Transform.Height
+                SourceTransform.X,SourceTransform.Y,
+                0,SourceTransform.Height,
+                SourceTransform.X,SourceTransform.Y + SourceTransform.Height
                 );
         }
     }
@@ -162,10 +172,9 @@ namespace webtoon2manga_console.Bindings
                     actualFragSize = new SizeF(fragSize.Width, toonH - lastY);
                 }
 
-                result.Add(
-                    new PageFragmnet(startPoint, actualFragSize) {
-                        pageSource = toon
-                    });
+                var frag = new PageFragmnet(startPoint, actualFragSize) {pageSource = toon};
+                frag.setTargetAspect( toonFactor);
+                result.Add(frag);
 
                 lastY += (int)(toonH / fragsBeforeRepeatSplit);
             }
@@ -231,9 +240,9 @@ namespace webtoon2manga_console.Bindings
 
                                     float colHPercentLeft = 1f - currentColOffsetY *1f / area.Height;
                                     float fullFragHeightAsColPercent = 
-                                        ((area.Width * 1f / currFrag.Transform.Width) * currFrag.Transform.Height) / area.Height;
+                                        ((area.Width * 1f / currFrag.SourceTransform.Width) * currFrag.SourceTransform.Height) / area.Height;
                                     float drawnFragPercent =
-                                        currentFragOffsetY  * 1f / currFrag.Transform.Height;
+                                        currentFragOffsetY  * 1f / currFrag.SourceTransform.Height;
                                     
                                     Rectangle newTarget = new Rectangle(area.Location, area.Size);
                                     
@@ -242,7 +251,7 @@ namespace webtoon2manga_console.Bindings
                                     {
                                         //draw and leave some for next while
                                         float drawPercent = Math.Min(colHPercentLeft, fullFragHeightAsColPercent);
-                                        Rectangle newSource = new Rectangle(currFrag.Transform.Location, currFrag.Transform.Size);
+                                        Rectangle newSource = new Rectangle(currFrag.SourceTransform.Location, currFrag.SourceTransform.Size);
                                         newSource.Height =(int)(newSource.Height* drawPercent);
                                         newSource.Offset(0, currentFragOffsetY);
 
@@ -262,7 +271,7 @@ namespace webtoon2manga_console.Bindings
                                             mock?.draw(writeColCount, newTarget);
                                         }
 
-                                        currentFragOffsetY += newSource.Height;
+                                        currentFragOffsetY = currFrag.SourceTransform.Height-  newSource.Height;
                                         currentColOffsetY = area.Height + 1;
                                     }
                                     else
@@ -275,7 +284,7 @@ namespace webtoon2manga_console.Bindings
                                         {
                                             using (Image fragSource = Bitmap.FromFile(currFrag.pageSource.filpath))
                                             {
-                                                g.DrawImage(fragSource, newTarget, currFrag.Transform, GraphicsUnit.Pixel);
+                                                g.DrawImage(fragSource, newTarget, currFrag.SourceTransform, GraphicsUnit.Pixel);
                                             }
                                         }
                                         else
@@ -306,5 +315,165 @@ namespace webtoon2manga_console.Bindings
             return writeColCount;
         }
 
+
+        public int saveCahpterFragmentsInto_PNG_LTR2(
+           List<PageFragmnet> allFragments, string prefix, string outputFolder, DrawMock mock = null)
+        {
+            bool dryRun = (mock != null);
+            int faceNumber = 0;
+
+            int absolutePad = (int)(pageSize.Width * padPercent * 0.01);
+            int printableWidth = pageSize.Width - absolutePad * (columnCount + 1);
+            int finalSingleColW = printableWidth / columnCount;
+            int finalSingalColH = pageSize.Height - 2 * absolutePad;
+
+            int fragmentIndex = 0;
+            int currentFragOffsetYInPageUnit = 0;
+            
+            int writeColCount = 0;
+            int currentColOffset = 0;
+
+            Bitmap faceBit = null;
+            System.Drawing.Graphics g = null;
+
+            log.i("Building duplex Face No." + 0);
+            faceBit = dryRun ? new Bitmap(1, 1) : new Bitmap(pageSize.Width, pageSize.Height);
+            g = System.Drawing.Graphics.FromImage(faceBit);
+
+            while (fragmentIndex < allFragments.Count) // fill pages
+            {
+                
+                Console.WriteLine("Add col: " + writeColCount);
+
+                int startY = absolutePad;
+                int endY = absolutePad + finalSingalColH;
+                int startX = absolutePad + (finalSingleColW + absolutePad) * ((writeColCount%3));
+                int endX = startX + finalSingleColW;
+
+                Rectangle area = new Rectangle(startX, startY, (endX - startX), (endY - startY));
+                if (!dryRun)
+                    g.DrawRectangle(borderPen, area);
+
+                mock?.setSize(writeColCount, new Rectangle(0, 0, finalSingleColW, finalSingalColH));
+
+                bool endOfCol = false;
+                while (currentColOffset < finalSingalColH && fragmentIndex < allFragments.Count && !endOfCol) 
+                {
+                    var _frag = allFragments[fragmentIndex];
+                    if ((currentColOffset + (_frag.TargetTransform.Height- currentFragOffsetYInPageUnit)) > finalSingalColH)
+                    {
+                        // Print frag until middle
+                        int drawHeightCol = Math.Min(finalSingalColH - currentColOffset, _frag.TargetTransform.Height);
+                        if (drawHeightCol > 5) // minimum 5 px o.w skip.
+                        {
+                            float drawPercent = drawHeightCol * 1f / _frag.TargetTransform.Height;
+                            int drawHeightFrag = (int)(_frag.SourceTransform.Height * drawPercent);
+
+                            Rectangle target = new Rectangle(area.X,area.Y+ currentColOffset, finalSingleColW, drawHeightCol);
+                            if (dryRun)
+                            {
+                                mock?.draw(writeColCount, target);
+                            }
+                            else
+                            {
+                                float scale = drawHeightCol *1f / _frag.TargetTransform.Height;
+                                int fragSize = (int)(scale * _frag.SourceTransform.Height);
+                                int insideFragOffset = (int)(scale * currentFragOffsetYInPageUnit);
+                                Rectangle source = new Rectangle(0, insideFragOffset, _frag.SourceTransform.Width, fragSize - insideFragOffset);
+
+                                using (Image fragSource = Bitmap.FromFile(_frag.pageSource.filpath))
+                                {
+                                    g.DrawImage(fragSource, target, source, GraphicsUnit.Pixel);
+                                }
+                            }
+
+                            endOfCol = true;
+                            currentFragOffsetYInPageUnit += drawHeightFrag;
+
+                            //Console.WriteLine("+H:{0},+HF:{1}/{2},COL:{3} OFF=COL:{4},FRAG:{5}",
+                            //    drawHeightCol, drawHeightFrag, _frag.SourceTransform.Height, writeColCount, currentColOffset, currentFragOffsetYInPageUnit);
+                        }
+                        else
+                        {
+                            endOfCol = true;
+                            currentFragOffsetYInPageUnit += 0;
+                        }
+                    }
+                    else
+                    {
+                        // Print frag until end
+                        int drawHeightCol = Math.Max(0, _frag.TargetTransform.Height - currentFragOffsetYInPageUnit);
+                        Rectangle target =
+                             new Rectangle(area.X, area.Y + currentColOffset, finalSingleColW, drawHeightCol);
+
+                        if (drawHeightCol > 0)
+                        {
+                            if (dryRun)
+                            {
+                                mock?.draw(writeColCount, target);
+                            }
+                            else
+                            {
+                                float scale = drawHeightCol * 1f / _frag.TargetTransform.Height;
+                                int fragSize = (int)(scale * _frag.SourceTransform.Height);
+                                int insideFragOffset = (int)(scale * currentFragOffsetYInPageUnit);
+                                Rectangle source = new Rectangle(0, insideFragOffset, _frag.SourceTransform.Width, fragSize - insideFragOffset);
+
+                                using (Image fragSource = Bitmap.FromFile(_frag.pageSource.filpath))
+                                {
+                                    g.DrawImage(fragSource, target, source, GraphicsUnit.Pixel);
+                                }
+                            }
+                            currentColOffset += drawHeightCol;
+                        }
+
+                        currentFragOffsetYInPageUnit = 0;
+                        fragmentIndex++;
+
+                        //Console.WriteLine("+H:{0},+HF:{1}/{2},COL:{3} OFF=COL:{4},FRAG:{5}",
+                        // drawHeightCol, "FILL", _frag.SourceTransform.Height, writeColCount, currentColOffset, currentFragOffsetYInPageUnit);
+                    }
+                }
+
+                currentColOffset = 0;
+                writeColCount++;
+                
+                if (writeColCount % 3 == 0)
+                {
+                    if (!dryRun)
+                        faceBit.Save(
+                            Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, faceNumber))
+                    );
+
+                    faceNumber++;
+                    log.i("Building duplex Face No." + faceNumber);
+
+                    if (!dryRun)
+                    {
+                        faceBit?.Dispose();
+                        g?.Dispose();
+
+                        faceBit = dryRun ? new Bitmap(1, 1) : new Bitmap(pageSize.Width, pageSize.Height);
+                        g = System.Drawing.Graphics.FromImage(faceBit);
+
+                        // White background
+                        g.FillRectangle(Brushes.White, new Rectangle(0, 0, pageSize.Width, pageSize.Height));
+                    }
+                }
+            }
+
+            if (writeColCount % 3 != 0)
+            {
+                if (!dryRun)
+                    faceBit.Save(
+                        Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, faceNumber))
+                );              
+            }
+
+            faceBit?.Dispose();
+            g?.Dispose();
+
+            return writeColCount;
+        }
     }
 }

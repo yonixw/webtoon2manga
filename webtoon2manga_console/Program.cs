@@ -252,7 +252,7 @@ namespace webtoon2manga_console
                      if (!currentOutputDir.Exists)
                          currentOutputDir.Create();
                      log.i("Saving fragments after folder to " + currentOutputDir.FullName);
-                     duplexBuilder.saveCahpterFragmentsInto_PNG_LTR(dirFragments, "",currentOutputDir.FullName);
+                     duplexBuilder.saveCahpterFragmentsInto_PNG_LTR2(dirFragments, "",currentOutputDir.FullName);
                  }
                  else
                  {
