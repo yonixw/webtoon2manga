@@ -47,7 +47,7 @@ namespace webtoon2manga_console.Graphics
             MagickImage black_zones = extarctZones1(source, fuzz: fuzz);
 
             log.i("(2/9) Detecting empty vertical spaces");
-            Size LiquidResizeTarget = removeDoubleLines(black_zones);
+            Size LiquidResizeTarget = removeDoubleLines(black_zones,source);
             Console.WriteLine("{0}x{1}->Liq->{2}x{3}", source.Width, source.Height, LiquidResizeTarget.Width, LiquidResizeTarget.Height);
 
             MagickGeometry geom = new MagickGeometry(LiquidResizeTarget.Width, LiquidResizeTarget.Height);
@@ -60,7 +60,7 @@ namespace webtoon2manga_console.Graphics
             log.i("(4/9) Detecting black background (again)");
             black_zones = extarctZones1(source, fuzz: fuzz);
             log.i("(5/9) Remove black background small areas");
-            MagickImage finer_black_zones = removeSmallAreas2(black_zones);
+            MagickImage finer_black_zones = (MagickImage)black_zones.Clone(); // removeSmallAreas2(black_zones);
             black_zones.Dispose();
 
             log.i("(6/9) Black background as mask");
@@ -73,7 +73,7 @@ namespace webtoon2manga_console.Graphics
                 source.Dispose();
 
                 log.i("(8/9) Replace background with Pattern");
-                using (MagickImage blackAsPattern = getPatternFillMasked5(finer_black_zones, usePencil: usePencil))
+                using (MagickImage blackAsPattern =  getPatternFillMasked5(finer_black_zones, usePencil: usePencil))
                 {
                     finer_black_zones.Dispose();
                     log.i("(9/9) Combine All");
@@ -134,7 +134,6 @@ namespace webtoon2manga_console.Graphics
             result.AddNoise(NoiseType.Random);
             result.MotionBlur(0, 20, 135);
             result.Charcoal(1, 1);
-            result.ColorSpace = ColorSpace.Gray;
             result.Threshold(new Percentage(50));
             return result;
         }
@@ -171,10 +170,12 @@ namespace webtoon2manga_console.Graphics
             {
                 tile = pencilImage((int)(clone.Width / tileFactor), (int)(clone.Height / tileFactor));
                 tile.Resize(new Percentage(tileFactor * 100));
+                
             }
 
             var tiled_clone = (MagickImage)clone.Clone();
             tiled_clone.Composite(tile, CompositeOperator.ColorDodge); // add in away that interacts with all black
+            tiled_clone.Opaque(new MagickColor("black"), new MagickColor("#77"));
 
             tile.Dispose();
 
@@ -192,67 +193,127 @@ namespace webtoon2manga_console.Graphics
         }
 
 
-        static MagickColor GetColorBytes(byte[] pixel, int offset)
+        static MagickColor GetColorBytes(byte[] pixel, int offset, int bytecount)
         {
-            return new MagickColor(pixel[offset + 0], pixel[offset + 1], pixel[offset + 2], pixel[offset + 3]);
+            MagickColor result = new MagickColor();
+
+            switch(bytecount)
+            {
+                case 1: // Grayscale
+                    result = new MagickColor(pixel[offset + 0], pixel[offset + 0], pixel[offset + 0]);
+                    break;
+                case 3: // RGB
+                    result = new MagickColor(pixel[offset + 0], pixel[offset + 1], pixel[offset + 2]);
+                    break;
+                case 4: // RGBA
+                    result = new MagickColor(pixel[offset + 0], pixel[offset + 1], pixel[offset + 2], pixel[offset + 3]);
+                    break;
+            }
+
+            return result;
         }
 
-        static bool isPixelSame(MagickColor startColor,byte[] pixel,int offset=0)
+        static bool isPixelSame(MagickColor startColor,byte[] pixel, int byteCount,int offset)
         {
-            var color = GetColorBytes(pixel, offset);
-            return color.Equals(startColor);
+            bool result = false;
+            if (pixel.Length == 1 || byteCount == 1)
+            {
+                result = Math.Abs(startColor.R - pixel[0]) < 10;
+            }
+            else
+            {
+                var color = GetColorBytes(pixel, offset,byteCount);
+                result = color.Equals(startColor);
+            }
+            return result;
         }
 
-        static Size removeDoubleLines(MagickImage mask)
+        static Size removeDoubleLines(MagickImage mask, MagickImage source)
         {
             //http://www.imagemagick.org/Usage/resize/#sample
-            using (MagickImage clone = (MagickImage)mask.Clone())
+            using (MagickImage greyscale = (MagickImage)source.Clone())
             {
 
                 // clone.ColorSpace = ColorSpace.RGB;
                 // clone.Alpha(AlphaOption.Set);
                 //return new Size(clone.Width, clone.Height);
 
-                using (var pixels = clone.GetPixelsUnsafe())
+                greyscale.ColorSpace = ColorSpace.HSL;
+                var lightness = (MagickImage)greyscale.Separate().Last();
+
+                using (var pixels_mask = mask.GetPixelsUnsafe())
                 {
-                    int W = clone.Width;
-                    int DupLinesCount = 0;
-
-                    var colNumber = Math.Min(10, W);
-                    if (colNumber == 0)
-                        return new Size(clone.Width,clone.Height);
-
-                    for (int y = 0; y < clone.Height; y++)
+                    using (var pixels_white = lightness.GetPixelsUnsafe())
                     {
-                        MagickColor startColor = GetColorBytes(pixels.GetPixel(0, y).ToArray(),0);
-                        bool fastConstentDetect = true;
-                        for (int c = 0; c < colNumber; c++)
-                        {
-                            int cFinal = (c * W / colNumber);
-                            if (!isPixelSame(startColor, pixels.GetPixel(cFinal, y).ToArray()))
-                            {
-                                fastConstentDetect = false;
-                                break;
-                            }
-                        }
 
-                        if (fastConstentDetect) // By tring 10 pixel we guessed, now to really check:
+                        int W = mask.Width;
+                        int DupLinesCount = 0;
+
+                        var faskPixelsCount = Math.Min(10, W);
+                        if (faskPixelsCount == 0)
+                            return new Size(mask.Width, mask.Height);
+
+                        for (int y = 0; y < mask.Height; y++)
                         {
-                            bool constantLine = true;
-                            byte[] rowPixels = pixels.GetArea(0, y, W, 1);
-                            for (int rowI = 0; rowI < rowPixels.Length / 4; rowI++)
+                            MagickColor black = new MagickColor("black");
+                            MagickColor white = GetColorBytes(new byte[] { 255 },0,1);
+
+                            bool fastConstentDetectBlack = true;
+                            bool fastConstentDetectWhite = true;
+
+                            for (int c = 0; c < faskPixelsCount; c++)
                             {
-                                if (!isPixelSame(startColor, rowPixels, 4 * rowI))
+                                int fastPixelX = (c * W / faskPixelsCount);
+                                if (!isPixelSame(black, pixels_mask.GetPixel(fastPixelX, y).ToArray(),4,0))
                                 {
-                                    constantLine = false;
+                                    fastConstentDetectBlack = false;
+                                }
+                                if (!isPixelSame(white, pixels_white.GetPixel(fastPixelX, y).ToArray(),1,0))
+                                {
+                                    fastConstentDetectWhite = false;
+                                }
+                                if (!fastConstentDetectBlack && !fastConstentDetectWhite)
+                                {
                                     break;
                                 }
                             }
-                            if (constantLine) DupLinesCount++;
+
+                            // By tring 10 pixel we guessed, now to really check:
+                            if (fastConstentDetectBlack)
+                            {
+                                bool constantLine = true;
+                                byte[] rowPixels = pixels_mask.GetArea(0, y, W, 1);
+                                for (int rowI = 0; rowI < rowPixels.Length / 4; rowI++)
+                                {
+                                    if (!isPixelSame(black, rowPixels,4, 4 * rowI))
+                                    {
+                                        constantLine = false;
+                                        break;
+                                    }
+                                }
+                                if (constantLine) DupLinesCount++;
+                            } 
+                            else if (fastConstentDetectWhite)
+                            {
+                                bool constantLine = true;
+                                byte[] rowPixels = pixels_white.GetArea(0, y, W, 1);
+                                for (int rowI = 0; rowI < rowPixels.Length; rowI++)
+                                {
+                                    if (!isPixelSame(white, rowPixels,1, rowI))
+                                    {
+                                        constantLine = false;
+                                        break;
+                                    }
+                                }
+                                if (constantLine) DupLinesCount++;
+                            }
+
                         }
+
+                        Console.WriteLine("DUP: " + DupLinesCount);
+                        return new Size(mask.Width, mask.Height- DupLinesCount);
+                        //clone.LiquidRescale(W, clone.Height - DupLinesCount);
                     }
-                    return new Size(clone.Width, clone.Height-DupLinesCount);
-                    //clone.LiquidRescale(W, clone.Height - DupLinesCount);
                 }
                 
             }

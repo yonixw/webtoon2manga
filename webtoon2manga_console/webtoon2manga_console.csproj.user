@@ -4,6 +4,6 @@
     <ProjectView>ProjectFiles</ProjectView>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <StartArguments>duplex -c 3 -d "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\PNG_gray" -o "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\PNG_bind" -p</StartArguments>
+    <StartArguments>color --pencil -f "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\PNG\Chapter 1\005.webp.png" "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\PNG\Chapter 2\039.webp.png" -o "C:\Users\Yoni\Desktop\2020\webtoon2manga_console\Samples\Tower of God\PNG_bind" -p</StartArguments>
   </PropertyGroup>
 </Project>

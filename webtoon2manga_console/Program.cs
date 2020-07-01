@@ -34,7 +34,7 @@ namespace webtoon2manga_console
         [Option('p', "pause", Default = false, HelpText = "Pause before exit? ")]
         public bool Pause { get; set; }
 
-        [Option('m', "memory", Default = 1024, HelpText = "Limit Memory (MB)")]
+        [Option('m', "memory", Default = 2048, HelpText = "Limit Memory (MB)")]
         public int LimitMB { get; set; }
     }
 
