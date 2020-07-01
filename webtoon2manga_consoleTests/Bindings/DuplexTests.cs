@@ -323,7 +323,7 @@ namespace webtoon2manga_console.Bindings.Tests
 
             var usedColumns = outputPages.Sum((p) => p.ColCount());
             var usedPrintOrders  = outputPages.Sum((p) => (p.GetCols.Sum((c) => c.getPrintSources.Count) ));
-            Assert.AreEqual(3, usedPrintOrders);
+            Assert.AreEqual(4, usedPrintOrders);
 
             CheckDrawInsideBounds(mock, usedColumns, 2);
         }

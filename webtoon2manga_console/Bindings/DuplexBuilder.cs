@@ -127,7 +127,7 @@ namespace webtoon2manga_console.Bindings
 
             OutputPartialPrintOrder printOrder = new OutputPartialPrintOrder(frag.pageSource.filpath);
             printOrder.PartialSource = new Rectangle(
-                    new Point(0,fragStartYSource),
+                    new Point(0,fragStartYSource+frag.SourceTransform.Y),
                     new Size(frag.SourceTransform.Width, fragEndYSource- fragStartYSource)
             );
 
@@ -229,24 +229,19 @@ namespace webtoon2manga_console.Bindings
             int printableWidth = pageSize.Width - absolutePad * (columnCount + 1);
             int finalColW = printableWidth / columnCount;
             int finalColH = pageH - 2 * absolutePad;
-            int repeatColPercentAbsolute = (int)(finalColH * repeatColumnPercent * 0.01);
 
             float toonFactor = finalColW * 1f / toonW; // Match Width
             int finalToonH = (int)Math.Ceiling(toonH * toonFactor);
 
-            float fragsBeforeRepeatSplit = finalToonH * 1f / finalColH;
-            int repeatAddedHeight = repeatColPercentAbsolute 
-                    *  ((int)Math.Ceiling(fragsBeforeRepeatSplit) - 1);
-
-            int finalFrags = (int)Math.Ceiling((finalToonH + repeatAddedHeight) * 1f / finalColH);
+            float fragsCount = finalToonH * 1f / finalColH;
             //==================================
 
             
             int lastY = 0;
-            int reapeatToonScale = (int)((toonH / fragsBeforeRepeatSplit) * 0.01 * repeatColumnPercent);
-            SizeF fragSize = new SizeF(toonW, toonH / fragsBeforeRepeatSplit);
+            int reapeatToonScale = (int)((toonH / fragsCount) * 0.01 * repeatColumnPercent);
+            SizeF fragSize = new SizeF(toonW, toonH / fragsCount);
 
-            for(int i=0; i<finalFrags;i++)
+            for(int i=0; i< fragsCount; i++)
             {
                 // First page without repeating from prev split
                 if (i > 0)
@@ -262,7 +257,7 @@ namespace webtoon2manga_console.Bindings
                 var frag = new PageFragmnet(startPoint, actualFragSize, toonFactor) {pageSource = toon};
                 result.Add(frag);
 
-                lastY += (int)(toonH / fragsBeforeRepeatSplit);
+                lastY += (int)(toonH / fragsCount);
             }
 
             return result;
