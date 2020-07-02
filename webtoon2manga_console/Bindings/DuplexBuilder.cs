@@ -262,11 +262,19 @@ namespace webtoon2manga_console.Bindings
 
         static Pen borderPen = new Pen(Color.Black, 4);
 
+        public Rectangle substractYRectangle(Rectangle r, int Y)
+        {
+            return new Rectangle(r.X, r.Y - Y, r.Width, r.Height + Y);
+        }
 
         public List<OutputPage> saveCahpterFragmentsInto_PNG_LTR(
               List<PageFragmnet> allFragments, string prefix, string outputFolder, DrawMock mock = null)
         {
             bool dryRun = (mock != null);
+
+            Size virtualPage = new Size(pageSize.Width, (int)(pageSize.Height *(1- repeatColumnPercent * 0.01f)));
+            int repeatHeight = pageSize.Height - virtualPage.Height ;
+            Rectangle virtualRepeat = new Rectangle(0, 0, virtualPage.Width, repeatHeight);
 
             // Split to parts
             List<OutputPage> outputPages = new List<OutputPage>();
@@ -274,7 +282,7 @@ namespace webtoon2manga_console.Bindings
             while (fragmentIndex < allFragments.Count)
             {
                 //Console.WriteLine("New Page");
-                OutputPage face = new OutputPage(columnCount, pageSize, padPercent);
+                OutputPage face = new OutputPage(columnCount, virtualPage, padPercent);
                 outputPages.Add(face);
 
                 for (int c=0;c<columnCount && fragmentIndex < allFragments.Count; c++)
@@ -299,56 +307,89 @@ namespace webtoon2manga_console.Bindings
                 Console.WriteLine(jsonString);
             }
 
-            // Print to file
-            int colUniqueIndex = 0;
-            int pageIndex = 0;
-            foreach (var page in outputPages)
+            // Width bigger just because we dont know col width yet.
+            Bitmap repeatCol = new Bitmap(virtualPage.Width, repeatHeight);
+            using (var rG = System.Drawing.Graphics.FromImage(repeatCol))
             {
-                log.i("Creating new page..");
-                using (Bitmap faceBit = dryRun ? new Bitmap(1, 1) : new Bitmap(pageSize.Width, pageSize.Height))
+                rG.FillRectangle(Brushes.Gray, virtualRepeat);
+
+                // Print to file
+                int colUniqueIndex = 0;
+                int pageIndex = 0;
+                bool hasRepeat = false;
+                foreach (var page in outputPages)
                 {
-                    using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(faceBit))
+                    log.i("Creating new page..");
+                    using (Bitmap faceBit = dryRun ? new Bitmap(1, 1) : new Bitmap(pageSize.Width, pageSize.Height))
                     {
-                        // White background
-                        if (!dryRun)
-                            g.FillRectangle(Brushes.White, new Rectangle(0, 0, pageSize.Width, pageSize.Height));
-
-                        foreach(var col in page.GetCols)
+                        using (System.Drawing.Graphics g = System.Drawing.Graphics.FromImage(faceBit))
                         {
-                            log.i("Creating new cols..");
-                            if (dryRun)
-                                mock?.setSize(colUniqueIndex, col.getArea);
-                            else
-                                g.DrawRectangle(borderPen, col.getArea); // Col border
+                            // White background
+                            if (!dryRun)
+                                g.FillRectangle(Brushes.White, new Rectangle(0, 0, pageSize.Width, pageSize.Height));
 
-                            foreach (var part in col.getPrintSources)
+                            Rectangle lastPartialShiftedTarget = new Rectangle(0,0,0,0);
+                            foreach (var col in page.GetCols)
                             {
+                                log.i("Creating new cols..");
+
+                                // Handle also the shifting:
+                                Rectangle actualFullCol = substractYRectangle(col.getArea, repeatHeight); 
+
                                 if (dryRun)
-                                    mock?.draw(colUniqueIndex, part.PartialTarget);
+                                    mock?.setSize(colUniqueIndex, col.getArea);
                                 else
+                                    g.DrawRectangle(borderPen, actualFullCol); // Col border
+
+                                if (hasRepeat)
                                 {
-                                    log.i("Creating frag from '" + part.filename + "'");
-                                    using (Image fragSource = Bitmap.FromFile(part.filename))
+                                    // Print repeat from last col
+                                    g.DrawImage(
+                                        repeatCol,
+                                        new Rectangle(actualFullCol.Location,new Size(actualFullCol.Width,repeatHeight))
+                                        , virtualRepeat, GraphicsUnit.Pixel);
+                                }
+
+                                foreach (var part in col.getPrintSources)
+                                {
+                                    if (dryRun)
+                                        mock?.draw(colUniqueIndex, part.PartialTarget);
+                                    else
                                     {
-                                        g.DrawImage(fragSource, part.PartialTarget, part.PartialSource, GraphicsUnit.Pixel);
+                                        log.i("Creating frag from '" + part.filename + "'");
+                                        using (Image fragSource = Bitmap.FromFile(part.filename))
+                                        {
+                                            // Shifted by substracting Y 
+                                            g.DrawImage(fragSource, part.PartialTarget, part.PartialSource, GraphicsUnit.Pixel);
+                                            lastPartialShiftedTarget = part.PartialTarget;
+                                            hasRepeat = true;
+                                        }
                                     }
                                 }
+
+                                // Save last repeat:
+                                Rectangle repeatTarget = lastPartialShiftedTarget;
+                                repeatTarget.Y = lastPartialShiftedTarget.Y + lastPartialShiftedTarget.Height - repeatHeight;
+                                repeatTarget.Height = repeatHeight;
+                                rG.DrawImage(faceBit, virtualRepeat, repeatTarget , GraphicsUnit.Pixel);
+                                colUniqueIndex++;
                             }
-                            colUniqueIndex++;
                         }
-                    }
 
-                    if (!dryRun) {
-                        string saveFile = Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, pageIndex));
-                        log.i("Saving to '" + saveFile  + "'");
-                        faceBit.Save(saveFile);
-                    }
+                        if (!dryRun)
+                        {
+                            string saveFile = Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, pageIndex));
+                            log.i("Saving to '" + saveFile + "'");
+                            faceBit.Save(saveFile);
+                        }
 
-                    pageIndex++;
+                        pageIndex++;
+                    }
                 }
-            }
 
-            return outputPages;
+                repeatCol.Dispose();
+                return outputPages;
+            }
         }
     }
 }

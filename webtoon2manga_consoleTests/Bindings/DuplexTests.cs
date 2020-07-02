@@ -179,7 +179,7 @@ namespace webtoon2manga_console.Bindings.Tests
                     TotalHeight += listToPrint[i].SourceTransform.Height;
                 }
 
-                Assert.AreEqual(12760,TotalHeight);
+                Assert.AreEqual(page.height,TotalHeight);
             }
         }
 
