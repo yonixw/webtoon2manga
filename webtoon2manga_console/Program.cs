@@ -72,6 +72,7 @@ namespace webtoon2manga_console
 
         static void Main(string[] args)
         {
+            
             var args_parsed = Parser.Default.ParseArguments<ColorOptions, DuplexOptions>(args)
                 .WithParsed<ColorOptions>((options) =>
                 {
@@ -79,6 +80,9 @@ namespace webtoon2manga_console
 
                     if (options.OderByName ?? true)
                         GlobalOrderFunc = (si) => si.Name;
+                    //ImageMagick.ResourceLimits.Thread = (ulong)options.workers;
+                    MagickNET.SetTempDirectory(System.IO.Path.GetTempPath());
+
                     Color(options);
 
                     if (options.Pause)
@@ -286,6 +290,8 @@ namespace webtoon2manga_console
                 worker.Join();
             }
             log.i("All workers done!");
+
+            
         }
 
         static void Duplex(DuplexOptions opt)

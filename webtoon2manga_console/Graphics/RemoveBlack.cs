@@ -39,48 +39,67 @@ namespace webtoon2manga_console.Graphics
 
         public static MagickImage FromFile(string file, int fuzz,LoggerHelper log, bool usePencil = false)
         {
-
-            MagickImage source = new MagickImage(file);
-            //source.Trim(); // Can't "copy" trim since we dont know new origin\offsets...
-
-            log.i("(1/9) Detecting black background");
-            MagickImage black_zones = extarctZones1(source, fuzz: fuzz);
-
-            log.i("(2/9) Detecting empty vertical spaces");
-            Size LiquidResizeTarget = removeDoubleLines(black_zones,source);
-            Console.WriteLine("{0}x{1}->Liq->{2}x{3}", source.Width, source.Height, LiquidResizeTarget.Width, LiquidResizeTarget.Height);
-
-            MagickGeometry geom = new MagickGeometry(LiquidResizeTarget.Width, LiquidResizeTarget.Height);
-            geom.IgnoreAspectRatio = true;
-            log.i("(3/9) Remove vertical spaces");
-            source.LiquidRescale(geom);
-
-            black_zones.Dispose();
-            // Recalculate blackZones
-            log.i("(4/9) Detecting black background (again)");
-            black_zones = extarctZones1(source, fuzz: fuzz);
-            log.i("(5/9) Remove black background small areas");
-            MagickImage finer_black_zones = removeSmallAreas2(black_zones);
-            black_zones.Dispose();
-
-            log.i("(6/9) Black background as mask");
-            MagickImage finer_black_zones_not_AsMask = getAlphaMask3(finer_black_zones, "white");
-
-            log.i("(7/9) Get grasyscale (but with HSL)");
-            using (MagickImage contentGrayscale = getContentLightnessMasked4(source, finer_black_zones_not_AsMask))
+            try
             {
-                finer_black_zones_not_AsMask.Dispose();
-                source.Dispose();
 
-                log.i("(8/9) Replace background with Pattern");
-                using (MagickImage blackAsPattern =  getPatternFillMasked5(finer_black_zones, usePencil: usePencil))
+                MagickImage source = new MagickImage(file);
+                //source.Trim(); // Can't "copy" trim since we dont know new origin\offsets...
+                if (source == null)
+                    throw new Exception("Got null image for " + file);
+
+                log.i("(1/9) Detecting black background");
+                MagickImage black_zones = extarctZones1(source, fuzz: fuzz);
+
+                log.i("(2/9) Detecting empty vertical spaces");
+                Size LiquidResizeTarget = removeDoubleLines(black_zones, source, log);
+                log.i(String.Format("{0}x{1}->Liq->{2}x{3}", source.Width, source.Height, LiquidResizeTarget.Width, LiquidResizeTarget.Height));
+
+                MagickGeometry geom = new MagickGeometry(LiquidResizeTarget.Width, LiquidResizeTarget.Height);
+                geom.IgnoreAspectRatio = true;
+                log.i("(3/9) Remove vertical spaces");
+
+                try
                 {
-                    finer_black_zones.Dispose();
-                    log.i("(9/9) Combine All");
-                    MagickImage result = getResult6(blackAsPattern, contentGrayscale);
-
-                    return result;
+                    source.LiquidRescale(geom);
                 }
+                catch (Exception ex)
+                {
+                    log.e("LIQ", ex);
+                }
+
+
+                // Recalculate blackZones
+                log.i("(4/9) Detecting black background (again)");
+                MagickImage black_zones2 = extarctZones1(source, fuzz: fuzz);
+                log.i("(5/9) Remove black background small areas");
+                MagickImage finer_black_zones = removeSmallAreas2(black_zones2);
+
+                log.i("(6/9) Black background as mask");
+                MagickImage finer_black_zones_not_AsMask = getAlphaMask3(finer_black_zones, "white");
+
+                log.i("(7/9) Get grasyscale (but with HSL)");
+                using (MagickImage contentGrayscale = getContentLightnessMasked4(source, finer_black_zones_not_AsMask))
+                {
+                    black_zones.Dispose();
+                    black_zones2.Dispose();
+                    source.Dispose();
+                    finer_black_zones_not_AsMask.Dispose();
+
+                    log.i("(8/9) Replace background with Pattern");
+                    using (MagickImage blackAsPattern = getPatternFillMasked5(finer_black_zones, usePencil: usePencil))
+                    {
+                        finer_black_zones.Dispose();
+                        log.i("(9/9) Combine All");
+                        MagickImage result = getResult6(blackAsPattern, contentGrayscale);
+
+                        return result;
+                    }
+                    }
+            }
+            catch (Exception ex)
+            {
+                log.e("Error", ex);
+                return new MagickImage();
             }
         }
 
@@ -218,7 +237,7 @@ namespace webtoon2manga_console.Graphics
             return Math.Abs(startColor.R - pixel[0]) < 10;
         }
 
-        static Size removeDoubleLines(MagickImage mask, MagickImage source)
+        static Size removeDoubleLines(MagickImage mask, MagickImage source, LoggerHelper log)
         {
             //http://www.imagemagick.org/Usage/resize/#sample
             using (MagickImage greyscale = (MagickImage)source.Clone())
@@ -229,80 +248,82 @@ namespace webtoon2manga_console.Graphics
                 //return new Size(clone.Width, clone.Height);
 
                 greyscale.ColorSpace = ColorSpace.HSL;
-                var lightness = (MagickImage)greyscale.Separate().Last();
-
-                using (var pixels_mask = mask.GetPixelsUnsafe())
+                using (var lightness = (MagickImage)greyscale.Separate().Last())
                 {
-                    using (var pixels_white = lightness.GetPixelsUnsafe())
+
+                    using (var pixels_mask = mask.GetPixelsUnsafe())
                     {
-
-                        int W = mask.Width;
-                        int DupLinesCount = 0;
-
-                        var faskPixelsCount = Math.Min(10, W);
-                        if (faskPixelsCount == 0)
-                            return new Size(mask.Width, mask.Height);
-
-                        for (int y = 0; y < mask.Height; y++)
+                        using (var pixels_white = lightness.GetPixelsUnsafe())
                         {
-                            MagickColor black = new MagickColor("black");
-                            MagickColor white = GetColorBytes(new byte[] { 255 },0,1);
 
-                            bool fastConstentDetectBlack = true;
-                            bool fastConstentDetectWhite = true;
+                            int W = mask.Width;
+                            int DupLinesCount = 0;
 
-                            for (int c = 0; c < faskPixelsCount; c++)
+                            var faskPixelsCount = Math.Min(10, W);
+                            if (faskPixelsCount == 0)
+                                return new Size(mask.Width, mask.Height);
+
+                            for (int y = 0; y < mask.Height; y++)
                             {
-                                int fastPixelX = (c * W / faskPixelsCount);
-                                if (!isPixelSame(black, pixels_mask.GetPixel(fastPixelX, y).ToArray(),4,0))
-                                {
-                                    fastConstentDetectBlack = false;
-                                }
-                                if (!isPixelSame(white, pixels_white.GetPixel(fastPixelX, y).ToArray(),1,0))
-                                {
-                                    fastConstentDetectWhite = false;
-                                }
-                                if (!fastConstentDetectBlack && !fastConstentDetectWhite)
-                                {
-                                    break;
-                                }
-                            }
+                                MagickColor black = new MagickColor("black");
+                                MagickColor white = GetColorBytes(new byte[] { 255 }, 0, 1);
 
-                            // By tring 10 pixel we guessed, now to really check:
-                            if (fastConstentDetectBlack)
-                            {
-                                bool constantLine = true;
-                                byte[] rowPixels = pixels_mask.GetArea(0, y, W, 1);
-                                for (int rowI = 0; rowI < rowPixels.Length / 4; rowI++)
+                                bool fastConstentDetectBlack = true;
+                                bool fastConstentDetectWhite = true;
+
+                                for (int c = 0; c < faskPixelsCount; c++)
                                 {
-                                    if (!isPixelSame(black, rowPixels,4, 4 * rowI))
+                                    int fastPixelX = (c * W / faskPixelsCount);
+                                    if (!isPixelSame(black, pixels_mask.GetPixel(fastPixelX, y).ToArray(), 4, 0))
                                     {
-                                        constantLine = false;
+                                        fastConstentDetectBlack = false;
+                                    }
+                                    if (!isPixelSame(white, pixels_white.GetPixel(fastPixelX, y).ToArray(), 1, 0))
+                                    {
+                                        fastConstentDetectWhite = false;
+                                    }
+                                    if (!fastConstentDetectBlack && !fastConstentDetectWhite)
+                                    {
                                         break;
                                     }
                                 }
-                                if (constantLine) DupLinesCount++;
-                            } 
-                            else if (fastConstentDetectWhite)
-                            {
-                                bool constantLine = true;
-                                byte[] rowPixels = pixels_white.GetArea(0, y, W, 1);
-                                for (int rowI = 0; rowI < rowPixels.Length; rowI++)
+
+                                // By tring 10 pixel we guessed, now to really check:
+                                if (fastConstentDetectBlack)
                                 {
-                                    if (!isPixelSame(white, rowPixels,1, rowI))
+                                    bool constantLine = true;
+                                    byte[] rowPixels = pixels_mask.GetArea(0, y, W, 1);
+                                    for (int rowI = 0; rowI < rowPixels.Length / 4; rowI++)
                                     {
-                                        constantLine = false;
-                                        break;
+                                        if (!isPixelSame(black, rowPixels, 4, 4 * rowI))
+                                        {
+                                            constantLine = false;
+                                            break;
+                                        }
                                     }
+                                    if (constantLine) DupLinesCount++;
                                 }
-                                if (constantLine) DupLinesCount++;
+                                else if (fastConstentDetectWhite)
+                                {
+                                    bool constantLine = true;
+                                    byte[] rowPixels = pixels_white.GetArea(0, y, W, 1);
+                                    for (int rowI = 0; rowI < rowPixels.Length; rowI++)
+                                    {
+                                        if (!isPixelSame(white, rowPixels, 1, rowI))
+                                        {
+                                            constantLine = false;
+                                            break;
+                                        }
+                                    }
+                                    if (constantLine) DupLinesCount++;
+                                }
+
                             }
 
+                            log.i("DUP: " + DupLinesCount);
+                            return new Size(mask.Width, mask.Height - DupLinesCount);
+                            //clone.LiquidRescale(W, clone.Height - DupLinesCount);
                         }
-
-                        Console.WriteLine("DUP: " + DupLinesCount);
-                        return new Size(mask.Width, mask.Height- DupLinesCount);
-                        //clone.LiquidRescale(W, clone.Height - DupLinesCount);
                     }
                 }
                 
