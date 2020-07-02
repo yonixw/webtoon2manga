@@ -172,6 +172,7 @@ namespace webtoon2manga_console
                 }
             }
 
+
             log.i(LoggerHelper.Stringify("Folders", opt.Folders.ToArray()));
             var dirs = opt.Folders.Select((d) => new DirectoryInfo(d)).OrderBy(GlobalOrderFunc).Cast<DirectoryInfo>();
             foreach (var _input_di in dirs)
