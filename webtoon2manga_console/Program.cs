@@ -132,7 +132,7 @@ namespace webtoon2manga_console
                 {
                     string outputFile = file;
                     if (!string.IsNullOrEmpty(outputFolder))
-                        outputFile = _fi.FullName.Replace(_fi.DirectoryName, outputFolder);
+                        outputFile = _fi.FullName.Replace(_fi.DirectoryName, new DirectoryInfo(outputFolder).FullName);
                     var _fi_out = new FileInfo(outputFile);
                     if (!_fi_out.Directory.Exists)
                     {
@@ -164,7 +164,6 @@ namespace webtoon2manga_console
             string ext = fileExt.Split('.').LastOrDefault() ?? "";
             var files = opt.Files
                 .Select((f)=>new FileInfo(f))
-                .Where((f)=>f.Name.EndsWith(ext))
                 .OrderBy(GlobalOrderFunc);
             foreach (var _input_fi in files)
             {
