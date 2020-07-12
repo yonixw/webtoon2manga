@@ -62,6 +62,12 @@ namespace webtoon2manga_console
 
         [Option('c',"col",Required =true, HelpText = "How much columns to put in a page")]
         public int Columns { get; set; }
+
+        [Option("padd", Required = false, Default = 2.3f, HelpText = "Pads around each column")]
+        public float Padding { get; set; }
+
+        [Option("space", Required = false, Default = 2.3f, HelpText = "Space between each column")]
+        public float Spacing { get; set; }
     }
 
     class Program
@@ -298,7 +304,8 @@ namespace webtoon2manga_console
         static void Duplex(DuplexOptions opt)
         {
             DuplexBuilder duplexBuilder = new DuplexBuilder(
-                new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns);
+                new LoggerHelper("duplex"),TemplatesTools.getA4(150,!(opt.Landscape ?? true)),opt.Columns,
+                padPercent: opt.Padding, spacePercent: opt.Spacing);
 
             Action<string> _file_job = new Action<string>((string input_file) =>
             {

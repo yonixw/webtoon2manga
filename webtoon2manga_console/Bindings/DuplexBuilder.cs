@@ -156,15 +156,17 @@ namespace webtoon2manga_console.Bindings
         int maxColCount = -1;
         Size colSize;
         int absolutePad = 0;
+        int absoluteSpace = 0;
 
         public List<OutputCol> GetCols { get { return myCol; } }
 
-        public OutputPage(int columnCount, Size pageSize, float padPercent)
+        public OutputPage(int columnCount, Size pageSize, float padPercent, float spacePercent)
         {
             maxColCount = columnCount;
 
             absolutePad = (int)(pageSize.Width * padPercent * 0.01);
-            int printableWidth = pageSize.Width - absolutePad * (columnCount + 1);
+            absoluteSpace = (int)(pageSize.Width * spacePercent * 0.01);
+            int printableWidth = pageSize.Width - absoluteSpace * (columnCount - 1) - 2 * absolutePad;
             int finalSingleColW = printableWidth / columnCount;
             int finalSingleColH = pageSize.Height - 2 * absolutePad;
 
@@ -175,7 +177,7 @@ namespace webtoon2manga_console.Bindings
         {
             Point offset = new Point();
             offset.Y = absolutePad;
-            offset.X = absolutePad + myCol.Sum((c) =>  absolutePad + c.getArea.Width);
+            offset.X = absolutePad + myCol.Sum((c) =>  absoluteSpace + c.getArea.Width);
 
             OutputCol col = new OutputCol(colSize,offset);
             myCol.Add(col);
@@ -199,15 +201,18 @@ namespace webtoon2manga_console.Bindings
         public int columnCount;
         public float repeatColumnPercent = 2.3f;
         public float padPercent = 2.3f;
+        public float spacePercent = 2.3f;
         public LoggerHelper log;
 
         public DuplexBuilder(LoggerHelper log, Size pageSize,
-            int column, float repeatColPercent = 2.3f, float padPercent = 2.3f)
+            int column, 
+            float repeatColPercent = 2.3f, float padPercent = 2.3f, float spacePercent = 2.3f)
         {
             this.pageSize = pageSize;
             this.columnCount = column;
             this.repeatColumnPercent = repeatColPercent;
             this.padPercent = padPercent;
+            this.spacePercent = spacePercent;
             this.log = log;
         }
 
@@ -226,7 +231,8 @@ namespace webtoon2manga_console.Bindings
             //=================================
 
             int absolutePad = (int)(pageSize.Width * padPercent * 0.01);
-            int printableWidth = pageSize.Width - absolutePad * (columnCount + 1);
+            int absoluteSpace = (int)(pageSize.Width * spacePercent * 0.01);
+            int printableWidth = pageSize.Width - absoluteSpace * (columnCount -1 ) - 2*absolutePad;
             int finalColW = printableWidth / columnCount;
             int finalColH = pageH - 2 * absolutePad;
 
@@ -267,6 +273,11 @@ namespace webtoon2manga_console.Bindings
             return new Rectangle(r.X, r.Y - Y, r.Width, r.Height + Y);
         }
 
+        public Rectangle shiftYRectangle(Rectangle r, int Y)
+        {
+            return new Rectangle(r.X, r.Y + Y, r.Width, r.Height );
+        }
+
         public List<OutputPage> saveCahpterFragmentsInto_PNG_LTR(
               List<PageFragmnet> allFragments, string prefix, string outputFolder, DrawMock mock = null)
         {
@@ -282,7 +293,7 @@ namespace webtoon2manga_console.Bindings
             while (fragmentIndex < allFragments.Count)
             {
                 //Console.WriteLine("New Page");
-                OutputPage face = new OutputPage(columnCount, virtualPage, padPercent);
+                OutputPage face = new OutputPage(columnCount, virtualPage, padPercent, spacePercent);
                 outputPages.Add(face);
 
                 for (int c=0;c<columnCount && fragmentIndex < allFragments.Count; c++)
@@ -334,7 +345,7 @@ namespace webtoon2manga_console.Bindings
                                 log.i("Creating new cols..");
 
                                 // Handle also the shifting:
-                                Rectangle actualFullCol = substractYRectangle(col.getArea, repeatHeight); 
+                                Rectangle actualFullCol = shiftYRectangle(substractYRectangle(col.getArea, repeatHeight),repeatHeight); 
 
                                 if (dryRun)
                                     mock?.setSize(colUniqueIndex, col.getArea);
@@ -360,8 +371,8 @@ namespace webtoon2manga_console.Bindings
                                         using (Image fragSource = Bitmap.FromFile(part.filename))
                                         {
                                             // Shifted by substracting Y 
-                                            g.DrawImage(fragSource, part.PartialTarget, part.PartialSource, GraphicsUnit.Pixel);
-                                            lastPartialShiftedTarget = part.PartialTarget;
+                                            lastPartialShiftedTarget = shiftYRectangle(part.PartialTarget,repeatHeight);
+                                            g.DrawImage(fragSource, lastPartialShiftedTarget , part.PartialSource, GraphicsUnit.Pixel);
                                             hasRepeat = true;
                                         }
                                     }
@@ -378,7 +389,7 @@ namespace webtoon2manga_console.Bindings
 
                         if (!dryRun)
                         {
-                            string saveFile = Path.Combine(outputFolder, string.Format("{0}page{1}.png", prefix, pageIndex));
+                            string saveFile = Path.Combine(outputFolder, string.Format("{0}page{1:0000}.png", prefix, pageIndex));
                             log.i("Saving to '" + saveFile + "'");
                             faceBit.Save(saveFile);
                         }
