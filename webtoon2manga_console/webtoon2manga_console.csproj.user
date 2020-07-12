@@ -4,6 +4,6 @@
     <ProjectView>ProjectFiles</ProjectView>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|AnyCPU'">
-    <StartArguments>color -f "C:\Users\Yoni\Documents\Mangas\webtoons_strip\webtoons\tower-of-god\ep100\00077.jpeg" -o "C:\Users\Yoni\Documents\Mangas\webtoons_strip\webtoons\tower-of-god\ep100_color"</StartArguments>
+    <StartArguments>color --fuzz 3 -f "C:\Users\Yoni\Documents\Mangas\webtoons_strip\webtoons\tower-of-god\ep100\00077.jpeg" -o "C:\Users\Yoni\Documents\Mangas\webtoons_strip\webtoons\tower-of-god\ep100_color"</StartArguments>
   </PropertyGroup>
 </Project>
